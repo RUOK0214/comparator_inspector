@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "comparator_inspector",
+  "version": "${version}",
+  "name": "Comparator Inspector",
+  "description": "Inspect the current comparator signal (0–15) of chests and other readable blocks.\n\nPoint at a block or show nearby signals within a configurable radius. Independently customize visibility, colors, opacity and text size for above-block labels and the info panel. Adjust label height above blocks too.\n\nStart with /ci or the configuration button. Nearby radius: 1–32 blocks. Label height: 0.00–3.00 blocks.\n\nMinecraft 26.2 / Fabric. Requires Fabric API. Multiplayer needs the mod on both server and client. Reads real server values in loaded chunks only.",
+  "authors": [
+    "RUOK0214"
+  ],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "io.github.ruok0214.comparatorinspector.ComparatorInspector"
+    ],
+    "client": [
+      "io.github.ruok0214.comparatorinspector.client.InspectorClient"
+    ],
+    "modmenu": [
+      "io.github.ruok0214.comparatorinspector.client.InspectorModMenu"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "26.2",
+    "java": ">=25",
+    "fabric-api": ">=0.160.0+26.2"
+  },
+  "suggests": {
+    "modmenu": "*"
+  },
+  "icon": "assets/comparator_inspector/icon.png",
+  "contact": {
+    "homepage": "https://github.com/RUOK0214/comparator_inspector",
+    "sources": "https://github.com/RUOK0214/comparator_inspector",
+    "issues": "https://github.com/RUOK0214/comparator_inspector/issues"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.github_releases": "https://github.com/RUOK0214/comparator_inspector/releases"
+      }
+    }
+  }
+}

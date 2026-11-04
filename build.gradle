@@ -1,0 +1,43 @@
+plugins { id 'net.fabricmc.fabric-loom' version "${loom_version}" }
+version = project.mod_version
+group = project.maven_group
+base { archivesName = project.archives_base_name }
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.terraformersmc.com/' }
+    maven { url = 'https://maven.nucleoid.xyz/' }
+}
+loom {
+    splitEnvironmentSourceSets()
+    mods { 'comparator_inspector' { sourceSet sourceSets.main; sourceSet sourceSets.client } }
+}
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    clientCompileOnly("com.terraformersmc:modmenu:${project.modmenu_version}") { transitive = false }
+    clientRuntimeOnly("com.terraformersmc:modmenu:${project.modmenu_version}") { transitive = false }
+}
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand(['version': project.version]) { escapeBackslash = true } }
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8'; options.release = 25 }
+java { withSourcesJar() }
+jar { from('LICENSE') { rename { "${it}_${project.archives_base_name}" } } }
+fabricApi {
+    configureTests {
+        createSourceSet = true
+        modId = 'comparator_inspector_test'
+        enableGameTests = false
+        enableClientGameTests = true
+        eula = true
+    }
+}
+
+// Test-only compile access to Mod Menu's real UI; nothing is bundled in the release JAR.
+dependencies {
+    gametestCompileOnly("com.terraformersmc:modmenu:${project.modmenu_version}") { transitive = false }
+    clientRuntimeOnly "eu.pb4:placeholder-api:3.1.0-beta.1+26.2"
+}

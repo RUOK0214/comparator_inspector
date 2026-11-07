@@ -12,11 +12,12 @@ public final class ColorScreen extends Screen {
     private final Screen parent;
     private final IntConsumer accept;
     private final int defaultColor;
+    private final String sampleText;
     private int rgb;
     private EditBox hex;
     private Button done;
-    public ColorScreen(Screen parent,int rgb,int defaultColor,IntConsumer accept) {
-        super(tr("color.title")); this.parent=parent; this.rgb=rgb; this.defaultColor=defaultColor; this.accept=accept;
+    public ColorScreen(Screen parent,int rgb,int defaultColor,String sampleText,IntConsumer accept) {
+        super(tr("color.title")); this.parent=parent; this.rgb=rgb; this.defaultColor=defaultColor; this.sampleText=sampleText; this.accept=accept;
     }
     @Override protected void init() {
         int w=Math.min(300,width-24),x=(width-w)/2,y=Math.max(38,height/2-80);
@@ -59,7 +60,7 @@ public final class ColorScreen extends Screen {
     @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float dt) {
         super.extractRenderState(g,mx,my,dt); g.centeredText(font,title,width/2,15,0xFFFFD166);
         int y=Math.max(38,height/2-80)+140;
-        g.centeredText(font,Component.literal(String.format("#%06X   7 / 15",rgb)),width/2,y,0xFF000000|rgb);
+        g.centeredText(font,Component.literal(String.format("#%06X   %s",rgb,sampleText)),width/2,y,0xFF000000|rgb);
         if(!done.active) g.centeredText(font,tr("color.invalid"),width/2,y+14,0xFFFF8070);
     }
     @Override public boolean isPauseScreen() { return false; }

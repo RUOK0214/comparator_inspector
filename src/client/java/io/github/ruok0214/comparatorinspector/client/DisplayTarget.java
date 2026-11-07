@@ -15,4 +15,8 @@ public enum DisplayTarget {
     public String titleKey() { return titleKey; }
     public DisplayStyle defaults() { return defaults; }
     public boolean inWorld() { return inWorld; }
+    public int minHeight() { return this == COMPARATOR ? DisplayStyle.MIN_HEIGHT : 0; }
+    public DisplayStyle normalize(DisplayStyle style) {
+        return style.height(Math.clamp(style.heightHundredths(),minHeight(),DisplayStyle.MAX_HEIGHT));
+    }
 }

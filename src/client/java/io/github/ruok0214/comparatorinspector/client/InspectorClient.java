@@ -132,8 +132,9 @@ public final class InspectorClient implements ClientModInitializer {
         var r = readings.get(pos);
         return r != null && mc.level.hasChunkAt(pos) && r.block().equals(BuiltInRegistries.BLOCK.getKey(mc.level.getBlockState(pos).getBlock())) ? r : null;
     }
-    public static Component signalText(InspectorPayloads.Reading r) {
-        return r.uniform() ? tr("signal", r.north()) : tr("directional", r.north(), r.east(), r.south(), r.west());
+    public static Component signalText(InspectorPayloads.Reading r, DisplayStyle style) {
+        return r.uniform() ? (style.valueOnly() ? Component.literal(Integer.toString(r.north())) : tr("signal", r.north()))
+                : tr("directional", r.north(), r.east(), r.south(), r.west());
     }
     public static List<Label> extractLabels() {
         var mc = Minecraft.getInstance();
@@ -146,7 +147,7 @@ public final class InspectorClient implements ClientModInitializer {
             var state = mc.level.getBlockState(r.pos());
             var style = worldStyle(state);
             if (!style.visible() || (!aimed && (!nearbySupported(state) || r.pos().distToCenterSqr(mc.player.position()) > (double) config.radius()*config.radius()))) continue;
-            String text = r.uniform() ? r.north() + " / 15" : signalText(r).getString();
+            String text = r.uniform() ? style.outputText(r.north()) : signalText(r,style).getString();
             result.add(new Label(Vec3.atLowerCornerWithOffset(r.pos(), .5, 1 + style.height(), .5), text, style.argb(aimed), .32f * style.scale()));
         }
         return List.copyOf(result);
@@ -160,7 +161,7 @@ public final class InspectorClient implements ClientModInitializer {
         else if (target != null) {
             var r = validReading(target);
             text = mc.level.getBlockState(target).getBlock().getName().copy().append(" · ")
-                    .append(r == null ? tr("waiting") : signalText(r));
+                    .append(r == null ? tr("waiting") : signalText(r,config.hud()));
         } else if (nearbyEnabled() && truncated) text = tr("limit", InspectorPayloads.MAX_BLOCKS);
         return text == null ? null : new HudDisplay(text,config.hud().argb(false),config.hud().backgroundArgb(),config.hud().scale());
     }

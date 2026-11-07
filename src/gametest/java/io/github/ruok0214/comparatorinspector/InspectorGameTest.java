@@ -69,7 +69,7 @@ public final class InspectorGameTest implements FabricClientGameTest {
             check(!migrated.targeted() && migrated.nearby() && !migrated.comparators() && migrated.radius()==17 && migrated.world().equals(DisplayStyle.WORLD) && migrated.hud().equals(DisplayStyle.HUD),"Legacy settings retain detection and receive display defaults with comparator output off");
             var previous=InspectorConfig.fromJson("{\"world\":{\"enabled\":false,\"color\":444,\"secondaryColor\":555,\"opacity\":65,\"scalePercent\":125}}");
             check(previous.world().heightHundredths()==18 && !previous.world().enabled() && previous.world().color()==444 && previous.world().opacity()==65 && previous.world().scalePercent()==125,"0.2 appearance keeps its values and gets original label height");
-            check(DisplayStyle.WORLD.height(-1).height()==0 && DisplayStyle.WORLD.height(400).height()==3,"Height clamps to supported range");
+            check(InspectorConfig.DEFAULT.appearance(DisplayTarget.WORLD,DisplayStyle.WORLD.height(-1)).world().height()==0 && DisplayStyle.WORLD.height(400).height()==3,"General block height clamps to supported range");
         });
         menu(c);
         c.clickScreenButton(InspectorClient.tr("nearby",net.minecraft.network.chat.Component.translatable("options.off")).getString());
@@ -181,7 +181,7 @@ public final class InspectorGameTest implements FabricClientGameTest {
         var point=c.computeOnClient(mc -> {
             var slider=mc.gui.screen().children().stream().filter(AppearanceScreen.HeightSlider.class::isInstance)
                     .map(AppearanceScreen.HeightSlider.class::cast).findFirst().orElseThrow();
-            return new double[]{(slider.getX()+slider.getWidth()/2.0)*mc.getWindow().getScreenWidth()/mc.gui.screen().width,
+            return new double[]{(slider.getX()+4+.75*(slider.getWidth()-8))*mc.getWindow().getScreenWidth()/mc.gui.screen().width,
                     (slider.getY()+10.0)*mc.getWindow().getScreenHeight()/mc.gui.screen().height};
         });
         c.getInput().setCursorPos(point[0],point[1]); c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT); c.waitTick();
@@ -249,6 +249,73 @@ public final class InspectorGameTest implements FabricClientGameTest {
         c.runOnClient(mc -> check(InspectorClient.extractLabels().isEmpty() && InspectorClient.hudDisplay()!=null,"Comparator info panel works with its above-block display hidden"));
         c.runOnClient(mc -> { InspectorConfig.DEFAULT.save(); InspectorClient.configure(InspectorConfig.DEFAULT); });
         aim(c,CHEST); value(c,CHEST,15);
+    }
+    private static void negativeHeightAndValueOnly(ClientGameTestContext c) {
+        var pos=CHEST.south();
+        c.runOnClient(mc -> {
+            var legacy=InspectorConfig.fromJson("{\"world\":{\"heightHundredths\":75},\"comparatorStyle\":{\"heightHundredths\":125}}");
+            check(legacy.world().heightHundredths()==75 && legacy.comparatorStyle().heightHundredths()==125
+                    && !legacy.world().valueOnly() && !legacy.comparatorStyle().valueOnly() && !legacy.hud().valueOnly(),"Existing settings keep their height and fraction format");
+            var bounds=InspectorConfig.fromJson("{\"world\":{\"heightHundredths\":-100},\"comparatorStyle\":{\"heightHundredths\":-400,\"valueOnly\":true}}");
+            check(bounds.world().heightHundredths()==0 && bounds.comparatorStyle().heightHundredths()==-300 && bounds.comparatorStyle().valueOnly(),"Negative heights are limited to comparators and clamp at -3");
+        });
+        var initial=InspectorConfig.DEFAULT.comparatorOutputs(true).detection(true,true,8);
+        c.runOnClient(mc -> { check(initial.save(),"Save fraction format defaults"); InspectorClient.configure(initial); });
+        aim(c,CHEST); value(c,pos,15);
+        menu(c); c.clickScreenButton("comparator_inspector.comparator.title");
+        c.getInput().resizeWindow(854,480); c.waitTicks(3);
+        var point=c.computeOnClient(mc -> {
+            var slider=mc.gui.screen().children().stream().filter(AppearanceScreen.HeightSlider.class::isInstance)
+                    .map(AppearanceScreen.HeightSlider.class::cast).findFirst().orElseThrow();
+            return new double[]{(slider.getX()+4+.375*(slider.getWidth()-8))*mc.getWindow().getScreenWidth()/mc.gui.screen().width,
+                    (slider.getY()+10.0)*mc.getWindow().getScreenHeight()/mc.gui.screen().height};
+        });
+        c.getInput().setCursorPos(point[0],point[1]); c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT); c.waitTick();
+        int selectedHeight=c.computeOnClient(mc -> ((AppearanceScreen)mc.gui.screen()).draft().heightHundredths());
+        check(selectedHeight>=-77 && selectedHeight<=-73,"Comparator slider selects a negative offset near -0.75");
+        c.clickScreenButton(InspectorClient.tr("appearance.value_only",net.minecraft.network.chat.Component.translatable("options.off")).getString());
+        color(c,"color.primary","#43E7D4","#FFFFFF"); styleSlider(c,true,.5); styleSlider(c,false,.9);
+        c.runOnClient(mc -> check(((AppearanceScreen)mc.gui.screen()).draft().heightHundredths()==selectedHeight && ((AppearanceScreen)mc.gui.screen()).draft().valueOnly(),"Color and size changes preserve negative height and value-only format"));
+        c.getInput().setCursorPos(20,20); c.takeScreenshot("negative-height-value-only-settings-ko");
+        c.clickScreenButton("comparator_inspector.confirm"); c.clickScreenButton("gui.cancel");
+        c.getInput().resizeWindow(1000,700); c.waitTicks(3); value(c,CHEST,15); value(c,pos,15);
+        var saved=c.computeOnClient(mc -> InspectorClient.config());
+        c.runOnClient(mc -> {
+            check(InspectorConfig.load().equals(saved) && saved.comparatorStyle().heightHundredths()==selectedHeight && saved.comparatorStyle().valueOnly(),"Negative height and value-only format save immediately and survive parent Cancel");
+            checkLabel(pos,saved.comparatorStyle(),false);
+            check(label(pos).text().equals("15") && label(CHEST).text().equals("15 / 15") && InspectorClient.hudDisplay().text().getString().contains("15 / 15"),"Comparator numeric format is independent of general blocks and info panel");
+        });
+        c.takeScreenshot("lowered-comparator-value-only-ko");
+        menu(c); c.clickScreenButton("comparator_inspector.world.title");
+        c.clickScreenButton(InspectorClient.tr("appearance.value_only",net.minecraft.network.chat.Component.translatable("options.off")).getString());
+        c.clickScreenButton("comparator_inspector.confirm"); c.clickScreenButton("gui.cancel");
+        value(c,CHEST,15); value(c,BARREL,0);
+        c.runOnClient(mc -> check(label(CHEST).text().equals("15") && label(BARREL).text().equals("0") && InspectorClient.config().comparatorStyle().equals(saved.comparatorStyle()),"General block format handles full and zero values without changing comparator settings"));
+        menu(c); c.clickScreenButton("comparator_inspector.hud.title");
+        c.clickScreenButton(InspectorClient.tr("appearance.value_only",net.minecraft.network.chat.Component.translatable("options.off")).getString());
+        c.getInput().resizeWindow(854,480); c.getInput().setCursorPos(20,20); c.waitTicks(3); c.takeScreenshot("value-only-hud-settings-small-ko");
+        c.clickScreenButton("comparator_inspector.confirm"); c.clickScreenButton("gui.cancel");
+        value(c,CHEST,15);
+        c.runOnClient(mc -> check(InspectorClient.hudDisplay().text().getString().endsWith(" · 15"),"Info panel keeps the block name and displays only the output value"));
+        menu(c); c.clickScreenButton("comparator_inspector.comparator.title"); c.clickScreenButton("comparator_inspector.reset");
+        c.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE); c.clickScreenButton("gui.cancel");
+        c.runOnClient(mc -> check(InspectorConfig.load().comparatorStyle().equals(saved.comparatorStyle()),"Cancel preserves negative height and numeric format"));
+        var allNumeric=c.computeOnClient(mc -> InspectorClient.config());
+        for (int height:new int[]{-300,0,300}) {
+            c.runOnClient(mc -> InspectorClient.configure(allNumeric.appearance(DisplayTarget.COMPARATOR,saved.comparatorStyle().height(height))));
+            value(c,pos,15);
+            c.runOnClient(mc -> { checkLabel(pos,saved.comparatorStyle().height(height),false); check(label(pos).text().equals("15"),"Value-only format survives height edits"); });
+        }
+        c.runOnClient(mc -> InspectorClient.configure(allNumeric));
+        menu(c); c.clickScreenButton("comparator_inspector.comparator.title"); c.clickScreenButton("comparator_inspector.reset");
+        c.clickScreenButton("comparator_inspector.confirm"); c.clickScreenButton("gui.cancel");
+        value(c,pos,15);
+        c.runOnClient(mc -> {
+            check(InspectorConfig.load().comparatorStyle().equals(DisplayStyle.COMPARATOR) && label(pos).text().equals("15 / 15"),"Comparator defaults restore height and fraction format");
+            check(InspectorClient.config().world().valueOnly() && InspectorClient.config().hud().valueOnly(),"Comparator defaults preserve other display formats");
+            InspectorConfig.DEFAULT.save(); InspectorClient.configure(InspectorConfig.DEFAULT);
+        });
+        c.getInput().resizeWindow(1000,700); value(c,CHEST,15);
     }
     @Override public void runTest(ClientGameTestContext c) {
         c.getInput().resizeWindow(1000,700);
@@ -385,6 +452,7 @@ public final class InspectorGameTest implements FabricClientGameTest {
             aim(c,CHEST); value(c,CHEST,15);
             appearances(c);
             comparatorAppearances(c);
+            negativeHeightAndValueOnly(c);
             // Covering the chest changes the actual vanilla comparator value.
             world.getServer().runCommand("setblock 0 82 0 minecraft:stone"); value(c,CHEST,0);
             world.getServer().runCommand("setblock 0 82 0 minecraft:air"); value(c,CHEST,15);

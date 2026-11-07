@@ -19,6 +19,8 @@
   "comparator_inspector.appearance.enabled": "Display enabled: %s",
   "comparator_inspector.appearance.opacity": "Opacity: %s%%",
   "comparator_inspector.appearance.size": "Text size: %s%%",
+  "comparator_inspector.appearance.value_only": "Show output value only: %s",
+  "comparator_inspector.appearance.value_only_hint": "Show 15 instead of 15 / 15. Applies only to this display.",
   "comparator_inspector.appearance.hidden": "Display is hidden.",
   "comparator_inspector.color.primary": "Text color",
   "comparator_inspector.color.target": "Targeted block text color",
@@ -29,9 +31,10 @@
   "comparator_inspector.color.green": "Green: %s",
   "comparator_inspector.color.blue": "Blue: %s",
   "comparator_inspector.color.invalid": "Enter a six-digit color code.",
-  "comparator_inspector.appearance.height": "Height above block: %s blocks",
+  "comparator_inspector.appearance.height": "Label height: %s blocks",
   "comparator_inspector.appearance.height_hint": "Offset above the top of the block cell. Range: 0.00–3.00 blocks. Default: 0.18.",
-  "modmenu.descriptionTranslation.comparator_inspector": "Inspect the current comparator signal (0–15) of chests and other readable blocks.\n\nPoint at a block or show nearby signals within a configurable radius. Independently customize general block labels, comparator output labels and the info panel. Each has its own visibility, colors, opacity and text size. General block and comparator labels also have separate height settings. Enable comparator outputs separately to show actual circuit outputs, including compare/subtract mode and side inputs.\n\nStart with /ci or the configuration button. Nearby radius: 1–32 blocks. Label height: 0.00–3.00 blocks.\n\nMinecraft 26.2 / Fabric. Requires Fabric API. Multiplayer needs the mod on both server and client. Reads real server values in loaded chunks only.",
+  "comparator_inspector.appearance.comparator_height_hint": "Offset from the top of the comparator's block cell. Range: -3.00–3.00 blocks. Default: 0.18. Negative values lower the label.",
+  "modmenu.descriptionTranslation.comparator_inspector": "Inspect the current comparator signal (0–15) of chests and other readable blocks.\n\nPoint at a block or show nearby signals within a configurable radius. Independently customize general block labels, comparator output labels and the info panel. Each has its own visibility, colors, opacity and text size. General block and comparator labels also have separate height settings. Comparator labels support negative offsets. Each display can show just the output value without / 15. Enable comparator outputs separately to show actual circuit outputs, including compare/subtract mode and side inputs.\n\nStart with /ci or the configuration button. Nearby radius: 1–32 blocks. Label height: 0.00–3.00 blocks for general blocks, -3.00–3.00 for comparators.\n\nMinecraft 26.2 / Fabric. Requires Fabric API. Multiplayer needs the mod on both server and client. Reads real server values in loaded chunks only.",
   "modmenu.summaryTranslation.comparator_inspector": "Inspect comparator signals on targeted and nearby blocks.",
   "comparator_inspector.confirm": "Confirm"
 }

@@ -12,8 +12,10 @@ public record InspectorConfig(boolean targeted, boolean nearby, int radius, bool
     public InspectorConfig {
         radius = Math.clamp(radius, 1, 32);
         if (world == null) world = DisplayStyle.WORLD;
+        world = DisplayTarget.WORLD.normalize(world);
         if (comparatorStyle == null) comparatorStyle = world;
         if (hud == null) hud = DisplayStyle.HUD;
+        hud = DisplayTarget.HUD.normalize(hud);
     }
     public InspectorConfig(boolean targeted, boolean nearby, int radius) { this(targeted,nearby,radius,false,DisplayStyle.WORLD,DisplayStyle.COMPARATOR,DisplayStyle.HUD); }
     public InspectorConfig detection(boolean targeted, boolean nearby, int radius) { return new InspectorConfig(targeted,nearby,radius,comparators,world,comparatorStyle,hud); }
@@ -29,7 +31,7 @@ public record InspectorConfig(boolean targeted, boolean nearby, int radius, bool
     }
     public static InspectorConfig fromJson(String text) {
         var json = JsonParser.parseString(text).getAsJsonObject();
-        var world = style(json,"world",DisplayStyle.WORLD);
+        var world = DisplayTarget.WORLD.normalize(style(json,"world",DisplayStyle.WORLD));
         return new InspectorConfig(json.has("targeted") ? json.get("targeted").getAsBoolean() : true,
                 json.has("nearby") && json.get("nearby").getAsBoolean(), json.has("radius") ? json.get("radius").getAsInt() : 8,
                 json.has("comparators") && json.get("comparators").getAsBoolean(),
@@ -41,7 +43,8 @@ public record InspectorConfig(boolean targeted, boolean nearby, int radius, bool
         return new DisplayStyle(s.has("enabled") ? s.get("enabled").getAsBoolean() : fallback.enabled(),
                 number(s,"color",fallback.color()),number(s,"secondaryColor",fallback.secondaryColor()),
                 number(s,"opacity",fallback.opacity()),number(s,"scalePercent",fallback.scalePercent()),
-                number(s,"heightHundredths",fallback.heightHundredths()));
+                number(s,"heightHundredths",fallback.heightHundredths()),
+                s.has("valueOnly") ? s.get("valueOnly").getAsBoolean() : fallback.valueOnly());
     }
     private static int number(JsonObject json,String key,int fallback) { return json.has(key) ? json.get(key).getAsInt() : fallback; }
     public static InspectorConfig load() {

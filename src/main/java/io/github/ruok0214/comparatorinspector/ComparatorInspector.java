@@ -7,6 +7,8 @@ import net.minecraft.core.*;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.*;
+import net.minecraft.world.level.block.ComparatorBlock;
+import net.minecraft.world.level.block.entity.ComparatorBlockEntity;
 import java.util.*;
 
 public final class ComparatorInspector implements ModInitializer {
@@ -38,6 +40,12 @@ public final class ComparatorInspector implements ModInitializer {
         // Double chests can consult an adjacent block. Never load a chunk just to inspect it.
         for (var side : Direction.Plane.HORIZONTAL) if (!level.hasChunkAt(pos.relative(side))) return null;
         var state = level.getBlockState(pos);
+        if (state.getBlock() instanceof ComparatorBlock) {
+            if (!(level.getBlockEntity(pos) instanceof ComparatorBlockEntity comparator)) return null;
+            // Use the circuit's current output, including vanilla update delay and side inputs.
+            int output = state.getValue(ComparatorBlock.POWERED) ? Math.clamp(comparator.getOutputSignal(), 0, 15) : 0;
+            return new InspectorPayloads.Reading(pos.immutable(), BuiltInRegistries.BLOCK.getKey(state.getBlock()), output, output, output, output);
+        }
         if (!state.hasAnalogOutputSignal()) return null;
         // Reading container slots can generate unopened structure loot. Leave it untouched.
         if (pendingLoot(level, pos)) return null;

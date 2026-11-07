@@ -3,7 +3,7 @@
   "id": "comparator_inspector",
   "version": "${version}",
   "name": "Comparator Inspector",
-  "description": "Inspect the current comparator signal (0–15) of chests and other readable blocks.\n\nPoint at a block or show nearby signals within a configurable radius. Independently customize visibility, colors, opacity and text size for above-block labels and the info panel. Adjust label height above blocks too.\n\nStart with /ci or the configuration button. Nearby radius: 1–32 blocks. Label height: 0.00–3.00 blocks.\n\nMinecraft 26.2 / Fabric. Requires Fabric API. Multiplayer needs the mod on both server and client. Reads real server values in loaded chunks only.",
+  "description": "Inspect the current comparator signal (0–15) of chests and other readable blocks.\n\nPoint at a block or show nearby signals within a configurable radius. Independently customize visibility, colors, opacity and text size for above-block labels and the info panel. Adjust label height above blocks too. Enable comparator outputs separately to show actual circuit outputs, including compare/subtract mode and side inputs.\n\nStart with /ci or the configuration button. Nearby radius: 1–32 blocks. Label height: 0.00–3.00 blocks.\n\nMinecraft 26.2 / Fabric. Requires Fabric API. Multiplayer needs the mod on both server and client. Reads real server values in loaded chunks only.",
   "authors": [
     "RUOK0214"
   ],

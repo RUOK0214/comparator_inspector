@@ -2,9 +2,11 @@
   "comparator_inspector.title": "비교기 신호 확인",
   "comparator_inspector.targeted": "바라보는 블록 표시: %s",
   "comparator_inspector.nearby": "주변 블록 상시 표시: %s",
+  "comparator_inspector.comparators": "비교기 출력 상시 표시: %s",
+  "comparator_inspector.comparators_hint": "주변 블록 표시와 별개로 거리 안의 비교기 위에 실제 출력(0~15)을 표시합니다. 비교·감산 모드와 옆 입력이 반영됩니다.",
   "comparator_inspector.radius": "주변 표시 거리: %s블록",
   "comparator_inspector.reset": "기본값",
-  "comparator_inspector.hint": "표시 설정은 각 창의 확인을 누르면 바로 저장됩니다. 조준·주변·거리 변경은 이 창에서 확인하세요.",
+  "comparator_inspector.hint": "표시 설정은 각 창의 확인으로 바로 저장됩니다. 탐지 방식과 거리 변경은 이 창에서 확인하세요.",
   "comparator_inspector.signal": "비교기 신호 %s / 15",
   "comparator_inspector.directional": "북 %s · 동 %s · 남 %s · 서 %s",
   "comparator_inspector.server_required": "신호 확인을 사용하려면 서버에도 Comparator Inspector가 필요합니다.",
@@ -28,7 +30,7 @@
   "comparator_inspector.color.invalid": "6자리 색상 코드를 입력하세요.",
   "comparator_inspector.appearance.height": "표시 높이: 블록 위 %s블록",
   "comparator_inspector.appearance.height_hint": "블록 한 칸의 윗면 기준 높이입니다. 0.00~3.00블록, 기본 0.18블록.",
-  "modmenu.descriptionTranslation.comparator_inspector": "상자 등 비교기가 읽을 수 있는 블록의 현재 신호 세기(0~15)를 확인하세요.\n\n바라보는 블록의 신호와 설정 거리 안의 주변 신호를 표시합니다. 블록 위 숫자와 정보창의 활성·색상·불투명도·글자 크기를 각각 조절하고, 블록 위 표시 높이도 설정할 수 있습니다.\n\n시작: /ci 또는 이 화면의 설정 버튼. 주변 거리 1~32블록, 표시 높이 0.00~3.00블록을 지원합니다.\n\nMinecraft 26.2 / Fabric 전용. Fabric API가 필요하며, 멀티플레이는 서버와 클라이언트 모두 설치해야 합니다. 서버의 실제 값을 사용하며, 불러온 청크만 확인합니다.",
+  "modmenu.descriptionTranslation.comparator_inspector": "상자 등 비교기가 읽을 수 있는 블록의 현재 신호 세기(0~15)를 확인하세요.\n\n바라보는 블록의 신호와 설정 거리 안의 주변 신호를 표시합니다. 블록 위 숫자와 정보창의 활성·색상·불투명도·글자 크기를 각각 조절하고, 블록 위 표시 높이도 설정할 수 있습니다. 비교기 출력 표시를 별도로 켜면 비교·감산 모드와 옆 입력이 반영된 실제 출력도 표시합니다.\n\n시작: /ci 또는 이 화면의 설정 버튼. 주변 거리 1~32블록, 표시 높이 0.00~3.00블록을 지원합니다.\n\nMinecraft 26.2 / Fabric 전용. Fabric API가 필요하며, 멀티플레이는 서버와 클라이언트 모두 설치해야 합니다. 서버의 실제 값을 사용하며, 불러온 청크만 확인합니다.",
   "modmenu.summaryTranslation.comparator_inspector": "블록의 비교기 신호를 조준하거나 주변 표시로 확인합니다.",
   "comparator_inspector.confirm": "확인"
 }

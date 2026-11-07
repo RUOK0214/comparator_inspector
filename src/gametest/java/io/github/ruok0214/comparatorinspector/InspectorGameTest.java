@@ -24,7 +24,12 @@ public final class InspectorGameTest implements FabricClientGameTest {
         }); c.waitTicks(5);
     }
     private static void value(ClientGameTestContext c, BlockPos pos, int expected) {
-        c.waitFor(mc -> { var r = InspectorClient.validReading(pos); return r != null && r.uniform() && r.north() == expected; });
+        try {
+            c.waitFor(mc -> { var r = InspectorClient.validReading(pos); return r != null && r.uniform() && r.north() == expected; });
+        } catch (AssertionError e) {
+            throw new AssertionError("Expected output " + expected + " at " + pos + "; actual "
+                    + c.computeOnClient(mc -> InspectorClient.validReading(pos) + "; state " + mc.level.getBlockState(pos)), e);
+        }
     }
     private static void menu(ClientGameTestContext c) {
         c.getInput().pressKey(GLFW.GLFW_KEY_T); c.waitForScreen(ChatScreen.class);
@@ -61,7 +66,7 @@ public final class InspectorGameTest implements FabricClientGameTest {
     private static void appearances(ClientGameTestContext c) {
         c.runOnClient(mc -> {
             var migrated=InspectorConfig.fromJson("{\"targeted\":false,\"nearby\":true,\"radius\":17}");
-            check(!migrated.targeted() && migrated.nearby() && migrated.radius()==17 && migrated.world().equals(DisplayStyle.WORLD) && migrated.hud().equals(DisplayStyle.HUD),"Legacy settings retain detection and receive display defaults");
+            check(!migrated.targeted() && migrated.nearby() && !migrated.comparators() && migrated.radius()==17 && migrated.world().equals(DisplayStyle.WORLD) && migrated.hud().equals(DisplayStyle.HUD),"Legacy settings retain detection and receive display defaults with comparator output off");
             var previous=InspectorConfig.fromJson("{\"world\":{\"enabled\":false,\"color\":444,\"secondaryColor\":555,\"opacity\":65,\"scalePercent\":125}}");
             check(previous.world().heightHundredths()==18 && !previous.world().enabled() && previous.world().color()==444 && previous.world().opacity()==65 && previous.world().scalePercent()==125,"0.2 appearance keeps its values and gets original label height");
             check(DisplayStyle.WORLD.height(-1).height()==0 && DisplayStyle.WORLD.height(400).height()==3,"Height clamps to supported range");
@@ -183,6 +188,101 @@ public final class InspectorGameTest implements FabricClientGameTest {
             value(c,CHEST,15); c.waitTicks(8);
             world.getServer().runOnServer(s -> check(((ComparatorBlockEntity)s.overworld().getBlockEntity(CHEST.south())).getOutputSignal()==15,"Real adjacent comparator matches full chest reading"));
             c.takeScreenshot("target-full-chest-ko");
+            // Comparator output is independently opt-in, even when both other detection modes are off.
+            var comparator=CHEST.south();
+            c.runOnClient(mc -> check(InspectorClient.validReading(comparator)==null,"Comparator output is disabled by default"));
+            menu(c);
+            c.clickScreenButton(InspectorClient.tr("targeted",net.minecraft.network.chat.Component.translatable("options.on")).getString());
+            c.clickScreenButton(InspectorClient.tr("comparators",net.minecraft.network.chat.Component.translatable("options.off")).getString());
+            c.getInput().setCursorPos(20,20); c.takeScreenshot("comparator-output-settings-ko");
+            c.getInput().resizeWindow(854,480); c.waitTicks(3); c.takeScreenshot("comparator-settings-small-ko");
+            c.clickScreenButton("comparator_inspector.confirm");
+            c.getInput().resizeWindow(1000,700);
+            value(c,comparator,15);
+            c.runOnClient(mc -> {
+                var cfg=InspectorClient.config();
+                check(cfg.comparators() && !cfg.targeted() && !cfg.nearby() && InspectorConfig.load().equals(cfg),"Comparator setting saves independently");
+                check(InspectorClient.validReading(CHEST)==null && InspectorClient.extractLabels().size()==1,"Only comparator is shown when the other modes are off");
+                check(InspectorClient.extractLabels().getFirst().text().equals("15 / 15"),"Comparator label displays actual output");
+            });
+            c.takeScreenshot("comparator-output-15-ko");
+            world.getServer().runCommand("setblock -1 81 1 minecraft:redstone_block");
+            c.waitTicks(10); value(c,comparator,15);
+            world.getServer().runCommand("setblock 0 81 1 minecraft:comparator[facing=north,mode=subtract]");
+            // A command changes the mode without the interaction's refresh; run its normal scheduled update.
+            world.getServer().runOnServer(s -> s.overworld().scheduleTick(comparator,Blocks.COMPARATOR,2)); c.waitTicks(6);
+            value(c,comparator,0);
+            c.takeScreenshot("comparator-subtract-zero-ko");
+            // A second comparator provides a stable side input of 1, so subtraction must show 14.
+            world.getServer().runCommand("setblock -2 81 1 minecraft:barrel");
+            world.getServer().runCommand("setblock -1 81 1 minecraft:comparator[facing=west]");
+            world.getServer().runOnServer(s -> {
+                var pos=new BlockPos(-2,81,1);
+                ((Container)s.overworld().getBlockEntity(pos)).setItem(0,new ItemStack(Items.STONE,64));
+                s.overworld().updateNeighbourForOutputSignal(pos,Blocks.BARREL);
+            });
+            value(c,new BlockPos(-1,81,1),1); value(c,comparator,14);
+            c.takeScreenshot("comparator-subtract-14-ko");
+            world.getServer().runCommand("setblock 0 81 1 minecraft:comparator[facing=north,mode=compare]");
+            world.getServer().runOnServer(s -> s.overworld().scheduleTick(comparator,Blocks.COMPARATOR,2)); c.waitTicks(6);
+            value(c,comparator,15);
+            // Side input stronger than the main input suppresses compare-mode output.
+            world.getServer().runCommand("setblock -1 81 1 minecraft:redstone_block");
+            world.getServer().runOnServer(s -> {
+                var chest=(Container)s.overworld().getBlockEntity(CHEST); chest.clearContent();
+                chest.setItem(0,new ItemStack(Items.STONE,64));
+                s.overworld().updateNeighbourForOutputSignal(CHEST,Blocks.CHEST);
+            });
+            value(c,comparator,0);
+            world.getServer().runCommand("setblock -1 81 1 minecraft:air");
+            world.getServer().runCommand("setblock -2 81 1 minecraft:air");
+            value(c,comparator,1);
+            c.runOnClient(mc -> InspectorClient.configure(InspectorClient.config().detection(false,false,1)));
+            c.waitTicks(25); c.runOnClient(mc -> check(InspectorClient.readings().isEmpty(),"Comparator obeys nearby radius"));
+            c.runOnClient(mc -> InspectorClient.configure(InspectorClient.config().detection(false,false,8)));
+            value(c,comparator,1);
+            menu(c); c.clickScreenButton("comparator_inspector.world.title");
+            c.clickScreenButton("comparator_inspector.confirm"); c.clickScreenButton("gui.cancel");
+            c.runOnClient(mc -> check(InspectorClient.config().comparators() && InspectorConfig.load().comparators(),"Immediate appearance save preserves comparator option"));
+            c.runOnClient(mc -> InspectorClient.configure(InspectorClient.config().appearance(true,DisplayStyle.WORLD.height(150).colors(0x43E7D4,0xFF7061))));
+            value(c,comparator,1);
+            c.runOnClient(mc -> {
+                var label=InspectorClient.extractLabels().getFirst();
+                check(Math.abs(label.position().y-83.5)<.0001 && label.color()==0xFF43E7D4,"Comparator obeys world height and color");
+                InspectorClient.configure(InspectorClient.config().appearance(true,DisplayStyle.WORLD.enabled(false)));
+            });
+            c.waitTicks(10); c.runOnClient(mc -> check(InspectorClient.extractLabels().isEmpty() && InspectorClient.readings().isEmpty(),"World master toggle stops standalone comparator reads"));
+            c.runOnClient(mc -> InspectorClient.configure(InspectorClient.config().appearance(true,DisplayStyle.WORLD)));
+            value(c,comparator,1);
+            world.getServer().runCommand("setblock 0 81 1 minecraft:stone");
+            c.waitFor(mc -> InspectorClient.validReading(comparator)==null && InspectorClient.extractLabels().isEmpty());
+            world.getServer().runCommand("setblock 0 81 1 minecraft:comparator[facing=north]");
+            world.getServer().runOnServer(s -> s.overworld().scheduleTick(comparator,Blocks.COMPARATOR,2));
+            world.getConnection().waitForClientboundPackets(); c.waitTicks(6);
+            value(c,comparator,1);
+            c.runOnClient(mc -> {
+                InspectorClient.configure(InspectorClient.config().detection(true,false,8));
+                var delta=net.minecraft.world.phys.Vec3.atLowerCornerWithOffset(comparator,.5,.0625,.5).subtract(mc.player.getEyePosition());
+                mc.player.setYRot((float)(Math.toDegrees(Math.atan2(delta.z,delta.x))-90));
+                mc.player.setXRot((float)-Math.toDegrees(Math.atan2(delta.y,Math.hypot(delta.x,delta.z))));
+            });
+            c.waitFor(mc -> comparator.equals(InspectorClient.target(mc))); value(c,comparator,1);
+            c.runOnClient(mc -> {
+                check(InspectorClient.hudDisplay()!=null && InspectorClient.hudDisplay().text().getString().contains("1 / 15"),"Targeted comparator reports actual output in the info panel");
+                check(InspectorClient.extractLabels().getFirst().color()==DisplayStyle.WORLD.argb(true),"Targeted comparator uses highlight color");
+                InspectorClient.configure(InspectorClient.config().detection(false,false,8));
+            });
+            menu(c);
+            c.clickScreenButton(InspectorClient.tr("comparators",net.minecraft.network.chat.Component.translatable("options.on")).getString());
+            c.clickScreenButton("comparator_inspector.confirm");
+            c.waitTicks(10); c.runOnClient(mc -> check(InspectorClient.readings().isEmpty() && InspectorClient.extractLabels().isEmpty() && !InspectorConfig.load().comparators(),"Disabling comparator output clears and saves"));
+            world.getServer().runOnServer(s -> {
+                var chest=(Container)s.overworld().getBlockEntity(CHEST);
+                for(int i=0;i<chest.getContainerSize();i++) chest.setItem(i,new ItemStack(Items.STONE,64));
+                s.overworld().updateNeighbourForOutputSignal(CHEST,Blocks.CHEST);
+            });
+            c.runOnClient(mc -> { InspectorConfig.DEFAULT.save(); InspectorClient.configure(InspectorConfig.DEFAULT); });
+            aim(c,CHEST); value(c,CHEST,15);
             appearances(c);
             // Covering the chest changes the actual vanilla comparator value.
             world.getServer().runCommand("setblock 0 82 0 minecraft:stone"); value(c,CHEST,0);

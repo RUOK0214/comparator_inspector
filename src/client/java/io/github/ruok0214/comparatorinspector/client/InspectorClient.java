@@ -15,6 +15,7 @@ import net.minecraft.gizmos.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.ComparatorBlock;
 import net.minecraft.world.phys.*;
 import java.util.*;
 
@@ -65,13 +66,13 @@ public final class InspectorClient implements ClientModInitializer {
         if (mc.level == null || mc.player == null) { clear(); return; }
         var current = mc.level.dimension().identifier();
         if (!current.equals(dimension)) { clear(); dimension = current; ticks = 0; }
-        if (!available() || (!config.targeted() && !config.nearby()) || (!config.world().visible() && !config.hud().visible())) { readings = Map.of(); labels = List.of(); return; }
+        if (!available() || (!config.targeted() && !nearbyEnabled()) || (!config.world().visible() && !config.hud().visible())) { readings = Map.of(); labels = List.of(); return; }
         if (ticks++ % 20 == 0) scan(mc);
         if (ticks % 5 != 0) return;
         var positions = new LinkedHashSet<BlockPos>();
         var target = target(mc);
         if (config.targeted() && target != null) positions.add(target);
-        if (config.nearby() && config.world().visible()) for (var pos : candidates) {
+        if (nearbyEnabled()) for (var pos : candidates) {
             if (positions.size() >= InspectorPayloads.MAX_BLOCKS) break;
             if (pos.distToCenterSqr(mc.player.position()) <= (double) config.radius() * config.radius()) positions.add(pos);
         }
@@ -82,11 +83,19 @@ public final class InspectorClient implements ClientModInitializer {
     public static BlockPos target(Minecraft mc) {
         if (mc.level == null || mc.player == null || !(mc.hitResult instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) return null;
         var pos = hit.getBlockPos();
-        return pos.distToCenterSqr(mc.player.position()) <= 32 * 32 && mc.level.getBlockState(pos).hasAnalogOutputSignal() ? pos : null;
+        var state = mc.level.getBlockState(pos);
+        boolean supported = state.getBlock() instanceof ComparatorBlock ? config.comparators() : state.hasAnalogOutputSignal();
+        return pos.distToCenterSqr(mc.player.position()) <= 32 * 32 && supported ? pos : null;
+    }
+    private static boolean nearbyEnabled() {
+        return config.world().visible() && (config.nearby() || config.comparators());
+    }
+    private static boolean nearbySupported(BlockState state) {
+        return state.getBlock() instanceof ComparatorBlock ? config.comparators() : config.nearby() && state.hasAnalogOutputSignal();
     }
     private static void scan(Minecraft mc) {
         truncated = false;
-        if (!config.nearby() || !config.world().visible()) { candidates = List.of(); return; }
+        if (!nearbyEnabled()) { candidates = List.of(); return; }
         var center = mc.player.position(); int r = config.radius(); var origin = mc.player.blockPosition();
         Comparator<BlockPos> nearest = Comparator.comparingDouble(p -> p.distToCenterSqr(center));
         var heap = new PriorityQueue<BlockPos>(InspectorPayloads.MAX_BLOCKS, nearest.reversed());
@@ -97,11 +106,11 @@ public final class InspectorClient implements ClientModInitializer {
                 if (chunk == null) continue;
                 for (int sy = minY >> 4; sy <= maxY >> 4; sy++) {
                     var section = chunk.getSection(mc.level.getSectionIndexFromSectionY(sy));
-                    if (!section.maybeHas(BlockState::hasAnalogOutputSignal)) continue;
+                    if (!section.maybeHas(InspectorClient::nearbySupported)) continue;
                     for (int y = Math.max(minY, sy * 16); y <= Math.min(maxY, sy * 16 + 15); y++)
                         for (int x = Math.max(origin.getX()-r, cx*16); x <= Math.min(origin.getX()+r, cx*16+15); x++)
                             for (int z = Math.max(origin.getZ()-r, cz*16); z <= Math.min(origin.getZ()+r, cz*16+15); z++) {
-                                if (!section.getBlockState(x & 15, y & 15, z & 15).hasAnalogOutputSignal()) continue;
+                                if (!nearbySupported(section.getBlockState(x & 15, y & 15, z & 15))) continue;
                                 var pos = new BlockPos(x, y, z);
                                 if (pos.distToCenterSqr(center) > (double) r*r) continue;
                                 if (heap.size() < InspectorPayloads.MAX_BLOCKS) heap.add(pos);
@@ -128,7 +137,8 @@ public final class InspectorClient implements ClientModInitializer {
         var result = new ArrayList<Label>();
         for (var r : readings.values()) {
             boolean aimed = r.pos().equals(target);
-            if ((!aimed && (!config.nearby() || r.pos().distToCenterSqr(mc.player.position()) > (double) config.radius()*config.radius())) || validReading(r.pos()) == null) continue;
+            if (validReading(r.pos()) == null) continue;
+            if (!aimed && (!nearbySupported(mc.level.getBlockState(r.pos())) || r.pos().distToCenterSqr(mc.player.position()) > (double) config.radius()*config.radius())) continue;
             String text = r.uniform() ? r.north() + " / 15" : signalText(r).getString();
             result.add(new Label(Vec3.atLowerCornerWithOffset(r.pos(), .5, 1 + config.world().height(), .5), text, config.world().argb(aimed), .32f * config.world().scale()));
         }
@@ -139,12 +149,12 @@ public final class InspectorClient implements ClientModInitializer {
         if (mc.level == null || mc.player == null || mc.gui.hud.isHidden() || mc.gui.screen() != null || !config.hud().visible()) return null;
         var target = config.targeted() ? target(mc) : null;
         Component text = null;
-        if (!available() && (target != null || config.nearby())) text = tr("server_required");
+        if (!available() && (target != null || nearbyEnabled())) text = tr("server_required");
         else if (target != null) {
             var r = validReading(target);
             text = mc.level.getBlockState(target).getBlock().getName().copy().append(" · ")
                     .append(r == null ? tr("waiting") : signalText(r));
-        } else if (config.nearby() && truncated) text = tr("limit", InspectorPayloads.MAX_BLOCKS);
+        } else if (nearbyEnabled() && truncated) text = tr("limit", InspectorPayloads.MAX_BLOCKS);
         return text == null ? null : new HudDisplay(text,config.hud().argb(false),config.hud().backgroundArgb(),config.hud().scale());
     }
     private static void hud(GuiGraphicsExtractor g) {

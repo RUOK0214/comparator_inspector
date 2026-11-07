@@ -66,19 +66,20 @@ public final class InspectorClient implements ClientModInitializer {
         if (mc.level == null || mc.player == null) { clear(); return; }
         var current = mc.level.dimension().identifier();
         if (!current.equals(dimension)) { clear(); dimension = current; ticks = 0; }
-        if (!available() || (!config.targeted() && !nearbyEnabled()) || (!config.world().visible() && !config.hud().visible())) { readings = Map.of(); labels = List.of(); return; }
+        var target = config.targeted() ? target(mc) : null;
+        boolean showTarget = target != null && (config.hud().visible() || worldStyle(mc.level.getBlockState(target)).visible());
+        if (!available() || (!showTarget && !nearbyEnabled())) { readings = Map.of(); labels = List.of(); return; }
         if (ticks++ % 20 == 0) scan(mc);
         if (ticks % 5 != 0) return;
         var positions = new LinkedHashSet<BlockPos>();
-        var target = target(mc);
-        if (config.targeted() && target != null) positions.add(target);
+        if (showTarget) positions.add(target);
         if (nearbyEnabled()) for (var pos : candidates) {
             if (positions.size() >= InspectorPayloads.MAX_BLOCKS) break;
             if (pos.distToCenterSqr(mc.player.position()) <= (double) config.radius() * config.radius()) positions.add(pos);
         }
         if (positions.isEmpty()) { readings = Map.of(); return; }
         ClientPlayNetworking.send(new InspectorPayloads.Query(current, ++sequence,
-                Math.max(config.radius(), target == null ? 1 : (int) Math.ceil(Math.sqrt(target.distToCenterSqr(mc.player.position())))), List.copyOf(positions)));
+                Math.max(config.radius(), !showTarget ? 1 : (int) Math.ceil(Math.sqrt(target.distToCenterSqr(mc.player.position())))), List.copyOf(positions)));
     }
     public static BlockPos target(Minecraft mc) {
         if (mc.level == null || mc.player == null || !(mc.hitResult instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) return null;
@@ -88,10 +89,14 @@ public final class InspectorClient implements ClientModInitializer {
         return pos.distToCenterSqr(mc.player.position()) <= 32 * 32 && supported ? pos : null;
     }
     private static boolean nearbyEnabled() {
-        return config.world().visible() && (config.nearby() || config.comparators());
+        return (config.nearby() && config.world().visible()) || (config.comparators() && config.comparatorStyle().visible());
     }
     private static boolean nearbySupported(BlockState state) {
-        return state.getBlock() instanceof ComparatorBlock ? config.comparators() : config.nearby() && state.hasAnalogOutputSignal();
+        return state.getBlock() instanceof ComparatorBlock ? config.comparators() && config.comparatorStyle().visible()
+                : config.nearby() && config.world().visible() && state.hasAnalogOutputSignal();
+    }
+    private static DisplayStyle worldStyle(BlockState state) {
+        return state.getBlock() instanceof ComparatorBlock ? config.comparatorStyle() : config.world();
     }
     private static void scan(Minecraft mc) {
         truncated = false;
@@ -132,15 +137,17 @@ public final class InspectorClient implements ClientModInitializer {
     }
     public static List<Label> extractLabels() {
         var mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null || mc.gui.hud.isHidden() || !available() || !config.world().visible()) return List.of();
+        if (mc.level == null || mc.player == null || mc.gui.hud.isHidden() || !available()) return List.of();
         var target = config.targeted() ? target(mc) : null;
         var result = new ArrayList<Label>();
         for (var r : readings.values()) {
             boolean aimed = r.pos().equals(target);
             if (validReading(r.pos()) == null) continue;
-            if (!aimed && (!nearbySupported(mc.level.getBlockState(r.pos())) || r.pos().distToCenterSqr(mc.player.position()) > (double) config.radius()*config.radius())) continue;
+            var state = mc.level.getBlockState(r.pos());
+            var style = worldStyle(state);
+            if (!style.visible() || (!aimed && (!nearbySupported(state) || r.pos().distToCenterSqr(mc.player.position()) > (double) config.radius()*config.radius()))) continue;
             String text = r.uniform() ? r.north() + " / 15" : signalText(r).getString();
-            result.add(new Label(Vec3.atLowerCornerWithOffset(r.pos(), .5, 1 + config.world().height(), .5), text, config.world().argb(aimed), .32f * config.world().scale()));
+            result.add(new Label(Vec3.atLowerCornerWithOffset(r.pos(), .5, 1 + style.height(), .5), text, style.argb(aimed), .32f * style.scale()));
         }
         return List.copyOf(result);
     }

@@ -5,6 +5,7 @@ public record DisplayStyle(boolean enabled, int color, int secondaryColor, int o
     public static final int DEFAULT_HEIGHT = 18;
     public static final int MAX_HEIGHT = 300;
     public static final DisplayStyle WORLD = new DisplayStyle(true, 0xFFFFFF, 0xFFD166, 100, 100);
+    public static final DisplayStyle COMPARATOR = new DisplayStyle(true, 0xFFFFFF, 0xFFD166, 100, 100);
     public static final DisplayStyle HUD = new DisplayStyle(true, 0xFFD166, 0x141B24, 100, 100);
     public DisplayStyle {
         color &= 0xFFFFFF; secondaryColor &= 0xFFFFFF;

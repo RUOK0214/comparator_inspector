@@ -5,27 +5,35 @@ import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.LoggerFactory;
 import java.nio.file.*;
 
-public record InspectorConfig(boolean targeted, boolean nearby, int radius, boolean comparators, DisplayStyle world, DisplayStyle hud) {
+public record InspectorConfig(boolean targeted, boolean nearby, int radius, boolean comparators, DisplayStyle world, DisplayStyle comparatorStyle, DisplayStyle hud) {
     public static final InspectorConfig DEFAULT = new InspectorConfig(true, false, 8);
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("comparator-inspector.json");
     public InspectorConfig {
         radius = Math.clamp(radius, 1, 32);
         if (world == null) world = DisplayStyle.WORLD;
+        if (comparatorStyle == null) comparatorStyle = world;
         if (hud == null) hud = DisplayStyle.HUD;
     }
-    public InspectorConfig(boolean targeted, boolean nearby, int radius) { this(targeted,nearby,radius,false,DisplayStyle.WORLD,DisplayStyle.HUD); }
-    public InspectorConfig detection(boolean targeted, boolean nearby, int radius) { return new InspectorConfig(targeted,nearby,radius,comparators,world,hud); }
-    public InspectorConfig comparatorOutputs(boolean enabled) { return new InspectorConfig(targeted,nearby,radius,enabled,world,hud); }
-    public InspectorConfig appearance(boolean isWorld, DisplayStyle style) {
-        return new InspectorConfig(targeted,nearby,radius,comparators,isWorld ? style : world,isWorld ? hud : style);
+    public InspectorConfig(boolean targeted, boolean nearby, int radius) { this(targeted,nearby,radius,false,DisplayStyle.WORLD,DisplayStyle.COMPARATOR,DisplayStyle.HUD); }
+    public InspectorConfig detection(boolean targeted, boolean nearby, int radius) { return new InspectorConfig(targeted,nearby,radius,comparators,world,comparatorStyle,hud); }
+    public InspectorConfig comparatorOutputs(boolean enabled) { return new InspectorConfig(targeted,nearby,radius,enabled,world,comparatorStyle,hud); }
+    public DisplayStyle style(DisplayTarget target) {
+        return switch (target) { case WORLD -> world; case COMPARATOR -> comparatorStyle; case HUD -> hud; };
+    }
+    public InspectorConfig appearance(DisplayTarget target, DisplayStyle style) {
+        return new InspectorConfig(targeted,nearby,radius,comparators,
+                target == DisplayTarget.WORLD ? style : world,
+                target == DisplayTarget.COMPARATOR ? style : comparatorStyle,
+                target == DisplayTarget.HUD ? style : hud);
     }
     public static InspectorConfig fromJson(String text) {
         var json = JsonParser.parseString(text).getAsJsonObject();
+        var world = style(json,"world",DisplayStyle.WORLD);
         return new InspectorConfig(json.has("targeted") ? json.get("targeted").getAsBoolean() : true,
                 json.has("nearby") && json.get("nearby").getAsBoolean(), json.has("radius") ? json.get("radius").getAsInt() : 8,
                 json.has("comparators") && json.get("comparators").getAsBoolean(),
-                style(json,"world",DisplayStyle.WORLD), style(json,"hud",DisplayStyle.HUD));
+                world, style(json,"comparatorStyle",world), style(json,"hud",DisplayStyle.HUD));
     }
     private static DisplayStyle style(JsonObject json, String key, DisplayStyle fallback) {
         if (!json.has(key) || !json.get(key).isJsonObject()) return fallback;

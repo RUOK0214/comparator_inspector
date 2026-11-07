@@ -8,12 +8,13 @@ import static io.github.ruok0214.comparatorinspector.client.InspectorClient.tr;
 
 public final class AppearanceScreen extends Screen {
     private final InspectorScreen parent;
+    private final DisplayTarget target;
     private final boolean world;
     private DisplayStyle draft;
     private boolean failed;
-    public AppearanceScreen(InspectorScreen parent, boolean world) {
-        super(tr(world ? "world.title" : "hud.title")); this.parent=parent; this.world=world;
-        draft=world ? parent.draft().world() : parent.draft().hud();
+    public AppearanceScreen(InspectorScreen parent, DisplayTarget target) {
+        super(tr(target.titleKey())); this.parent=parent; this.target=target; this.world=target.inWorld();
+        draft=parent.draft().style(target);
     }
     public DisplayStyle draft() { return draft; }
     private int top() { return world ? Math.max(32,height/2-90) : Math.max(38,height/2-80); }
@@ -27,10 +28,10 @@ public final class AppearanceScreen extends Screen {
         addRenderableWidget(new StyleSlider(x,y+step*4,w,true));
         if(world) addRenderableWidget(new HeightSlider(x,y+step*5,w));
         int bw=(w-8)/3;
-        addRenderableWidget(Button.builder(tr("reset"),b -> { draft=world ? DisplayStyle.WORLD : DisplayStyle.HUD; rebuildWidgets(); }).bounds(x,height-28,bw,20).build());
+        addRenderableWidget(Button.builder(tr("reset"),b -> { draft=target.defaults(); rebuildWidgets(); }).bounds(x,height-28,bw,20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"),b -> onClose()).bounds(x+bw+4,height-28,bw,20).build());
         addRenderableWidget(Button.builder(tr("confirm"),b -> {
-            if (parent.saveAppearance(world,draft)) onClose(); else failed=true;
+            if (parent.saveAppearance(target,draft)) onClose(); else failed=true;
         }).bounds(x+2*(bw+4),height-28,bw,20).build());
     }
     public final class HeightSlider extends AbstractSliderButton {
@@ -45,7 +46,7 @@ public final class AppearanceScreen extends Screen {
     }
     private Component enabledLabel() { return tr("appearance.enabled", Component.translatable(draft.enabled() ? "options.on" : "options.off")); }
     private void color(boolean secondary) {
-        var defaults=world ? DisplayStyle.WORLD : DisplayStyle.HUD;
+        var defaults=target.defaults();
         minecraft.gui.setScreen(new ColorScreen(this,secondary ? draft.secondaryColor() : draft.color(),
                 secondary ? defaults.secondaryColor() : defaults.color(),value ->
                 draft=secondary ? draft.colors(draft.color(),value) : draft.colors(value,draft.secondaryColor())));

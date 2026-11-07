@@ -12,16 +12,16 @@ public final class InspectorScreen extends Screen {
     private boolean failed;
     public InspectorScreen(Screen parent) { super(tr("title")); this.parent = parent; draft = InspectorClient.config(); }
     public InspectorConfig draft() { return draft; }
-    public boolean saveAppearance(boolean world, DisplayStyle style) {
+    public boolean saveAppearance(DisplayTarget target, DisplayStyle style) {
         // Commit only this display. Other unsaved controls in the parent remain a draft.
-        var saved = InspectorClient.config().appearance(world,style);
+        var saved = InspectorClient.config().appearance(target,style);
         if (!saved.save()) return false;
         InspectorClient.configure(saved);
-        draft = draft.appearance(world,style);
+        draft = draft.appearance(target,style);
         return true;
     }
     @Override protected void init() {
-        int w = Math.min(300, width - 24), x = (width-w)/2, y = Math.max(32, height/2-90);
+        int w = Math.min(300, width - 24), x = (width-w)/2, y = Math.max(28, height/2-98);
         addRenderableWidget(Button.builder(toggle("targeted", draft.targeted()), b -> {
             draft = draft.detection(!draft.targeted(), draft.nearby(), draft.radius()); b.setMessage(toggle("targeted", draft.targeted()));
         }).bounds(x,y,w,20).build());
@@ -35,8 +35,11 @@ public final class InspectorScreen extends Screen {
             @Override protected void updateMessage() { setMessage(tr("radius", 1+(int)Math.round(value*31))); }
             @Override protected void applyValue() { draft = draft.detection(draft.targeted(), draft.nearby(), 1+(int)Math.round(value*31)); }
         });
-        addRenderableWidget(Button.builder(tr("world.title"),b -> minecraft.gui.setScreen(new AppearanceScreen(this,true))).bounds(x,y+96,w,20).build());
-        addRenderableWidget(Button.builder(tr("hud.title"),b -> minecraft.gui.setScreen(new AppearanceScreen(this,false))).bounds(x,y+120,w,20).build());
+        int row=0;
+        for (var target : DisplayTarget.values()) {
+            addRenderableWidget(Button.builder(tr(target.titleKey()),b -> minecraft.gui.setScreen(new AppearanceScreen(this,target))).bounds(x,y+92+row*22,w,20).build());
+            row++;
+        }
         int bw=(w-8)/3;
         addRenderableWidget(Button.builder(tr("reset"), b -> { draft=InspectorConfig.DEFAULT; rebuildWidgets(); }).bounds(x,height-28,bw,20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose()).bounds(x+bw+4,height-28,bw,20).build());
@@ -48,9 +51,8 @@ public final class InspectorScreen extends Screen {
     @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float dt) {
         super.extractRenderState(g,mx,my,dt);
         g.centeredText(font,title,width/2,15,0xFFFFD166);
-        int w=Math.min(300,width-24), x=(width-w)/2, y=Math.max(32,height/2-90);
-        g.textWithWordWrap(font,tr("hint"),x,y+148,w,0xFFCED8E4);
-        if (failed) g.centeredText(font,tr("save_failed"),width/2,height-43,0xFFFF8070);
+        int w=Math.min(300,width-24), x=(width-w)/2, y=Math.max(28,height/2-98);
+        g.textWithWordWrap(font,tr(failed ? "save_failed" : "hint"),x,y+160,w,failed ? 0xFFFF8070 : 0xFFCED8E4);
     }
     @Override public boolean isPauseScreen() { return false; }
     @Override public void onClose() { minecraft.gui.setScreen(parent); }

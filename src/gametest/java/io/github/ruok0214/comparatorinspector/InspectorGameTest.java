@@ -116,7 +116,7 @@ public final class InspectorGameTest implements FabricClientGameTest {
         });
         c.getInput().resizeWindow(1000,700); c.waitTicks(3); c.takeScreenshot("independent-colors-ko");
         for(int height:new int[]{0,300}) {
-            c.runOnClient(mc -> InspectorClient.configure(saved.appearance(true,saved.world().height(height)))); value(c,CHEST,15);
+            c.runOnClient(mc -> InspectorClient.configure(saved.appearance(DisplayTarget.WORLD,saved.world().height(height)))); value(c,CHEST,15);
             c.runOnClient(mc -> check(Math.abs(InspectorClient.extractLabels().getFirst().position().y-(CHEST.getY()+1+height/100.0))<.0001,"Height endpoints render at the requested position"));
         }
         c.runOnClient(mc -> InspectorClient.configure(saved)); value(c,CHEST,15);
@@ -141,14 +141,114 @@ public final class InspectorGameTest implements FabricClientGameTest {
         value(c,CHEST,15);
         c.runOnClient(mc -> check(InspectorClient.extractLabels().isEmpty() && InspectorClient.hudDisplay()!=null,"World disabled does not hide HUD"));
         c.takeScreenshot("hud-only-ko");
-        c.runOnClient(mc -> InspectorClient.configure(saved.appearance(false,saved.hud().enabled(false)))); value(c,CHEST,15);
+        c.runOnClient(mc -> InspectorClient.configure(saved.appearance(DisplayTarget.HUD,saved.hud().enabled(false)))); value(c,CHEST,15);
         c.runOnClient(mc -> check(!InspectorClient.extractLabels().isEmpty() && InspectorClient.hudDisplay()==null,"HUD disabled does not hide world labels"));
         c.takeScreenshot("world-only-ko");
-        c.runOnClient(mc -> InspectorClient.configure(saved.appearance(true,saved.world().enabled(false)).appearance(false,saved.hud().enabled(false))));
+        c.runOnClient(mc -> InspectorClient.configure(saved.appearance(DisplayTarget.WORLD,saved.world().enabled(false)).appearance(DisplayTarget.HUD,saved.hud().enabled(false))));
         c.waitTicks(10); c.runOnClient(mc -> check(InspectorClient.readings().isEmpty() && InspectorClient.extractLabels().isEmpty() && InspectorClient.hudDisplay()==null,"Both displays disabled stops reads"));
-        c.runOnClient(mc -> InspectorClient.configure(saved.appearance(true,saved.world().opacity(0)).appearance(false,saved.hud().opacity(0))));
+        c.runOnClient(mc -> InspectorClient.configure(saved.appearance(DisplayTarget.WORLD,saved.world().opacity(0)).appearance(DisplayTarget.HUD,saved.hud().opacity(0))));
         c.waitTicks(10); c.runOnClient(mc -> check(InspectorClient.extractLabels().isEmpty() && InspectorClient.hudDisplay()==null,"Zero opacity hides both displays"));
         c.runOnClient(mc -> { InspectorConfig.DEFAULT.save(); InspectorClient.configure(InspectorConfig.DEFAULT); }); value(c,CHEST,15);
+    }
+    private static InspectorClient.Label label(BlockPos pos) {
+        return InspectorClient.extractLabels().stream().filter(l -> l.position().x==pos.getX()+.5 && l.position().z==pos.getZ()+.5).findFirst().orElseThrow();
+    }
+    private static void checkLabel(BlockPos pos, DisplayStyle style, boolean aimed) {
+        var label=label(pos);
+        check(label.color()==style.argb(aimed) && Math.abs(label.scale()-.32f*style.scale())<.001
+                && Math.abs(label.position().y-(pos.getY()+1+style.height()))<.0001,"Independent color, opacity, size and height at "+pos);
+    }
+    private static void comparatorAppearances(ClientGameTestContext c) {
+        var pos=CHEST.south();
+        c.runOnClient(mc -> {
+            var legacy=InspectorConfig.fromJson("{\"comparators\":true,\"world\":{\"enabled\":false,\"color\":123456,\"secondaryColor\":654321,\"opacity\":70,\"scalePercent\":150,\"heightHundredths\":125}}");
+            check(legacy.comparators() && legacy.comparatorStyle().equals(legacy.world()),"0.5 settings migrate the entire shared style without changing appearance");
+            check(legacy.save() && InspectorConfig.load().equals(legacy),"Migrated comparator style survives saving and reloading");
+            var explicit=InspectorConfig.fromJson("{\"world\":{\"color\":123},\"comparatorStyle\":{\"color\":456,\"heightHundredths\":250}}");
+            check(explicit.comparatorStyle().color()==456 && explicit.comparatorStyle().heightHundredths()==250,"Explicit comparator style takes precedence over legacy appearance");
+        });
+        var initial=InspectorConfig.DEFAULT.comparatorOutputs(true).detection(true,true,8)
+                .appearance(DisplayTarget.WORLD,DisplayStyle.WORLD.colors(0x43E7D4,0x7DDF64).height(40).size(125).opacity(90))
+                .appearance(DisplayTarget.HUD,DisplayStyle.HUD.colors(0xFFD166,0x202060));
+        c.runOnClient(mc -> { check(initial.save(),"Save initial independent displays"); InspectorClient.configure(initial); });
+        aim(c,CHEST); value(c,CHEST,15); value(c,pos,15);
+        menu(c);
+        c.clickScreenButton(InspectorClient.tr("targeted",net.minecraft.network.chat.Component.translatable("options.on")).getString());
+        c.getInput().resizeWindow(854,480); c.getInput().setCursorPos(20,20); c.waitTicks(3); c.takeScreenshot("three-display-settings-small-ko");
+        c.clickScreenButton("comparator_inspector.comparator.title"); c.waitForScreen(AppearanceScreen.class);
+        color(c,"color.primary","#BC86FF","#FFFFFF"); color(c,"color.target","#FF7061","#FFD166");
+        styleSlider(c,true,2.0/3); styleSlider(c,false,.7);
+        var point=c.computeOnClient(mc -> {
+            var slider=mc.gui.screen().children().stream().filter(AppearanceScreen.HeightSlider.class::isInstance)
+                    .map(AppearanceScreen.HeightSlider.class::cast).findFirst().orElseThrow();
+            return new double[]{(slider.getX()+slider.getWidth()/2.0)*mc.getWindow().getScreenWidth()/mc.gui.screen().width,
+                    (slider.getY()+10.0)*mc.getWindow().getScreenHeight()/mc.gui.screen().height};
+        });
+        c.getInput().setCursorPos(point[0],point[1]); c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT); c.waitTick();
+        c.getInput().setCursorPos(20,20); c.takeScreenshot("comparator-appearance-small-ko");
+        c.clickScreenButton("comparator_inspector.confirm");
+        c.runOnClient(mc -> {
+            var saved=InspectorConfig.load();
+            check(saved.comparatorStyle().equals(new DisplayStyle(true,0xBC86FF,0xFF7061,70,150,150)),"Comparator controls save immediately");
+            check(saved.world().equals(initial.world()) && saved.hud().equals(initial.hud()),"Comparator confirmation preserves general and HUD styles");
+            check(saved.targeted() && !((InspectorScreen)mc.gui.screen()).draft().targeted(),"Comparator confirmation leaves parent detection changes unconfirmed");
+        });
+        c.clickScreenButton("gui.cancel");
+        c.getInput().resizeWindow(1000,700); c.waitTicks(3); value(c,CHEST,15); value(c,pos,15);
+        var saved=c.computeOnClient(mc -> InspectorClient.config());
+        c.runOnClient(mc -> {
+            check(InspectorConfig.load().equals(saved),"Comparator confirmation survives parent Cancel");
+            checkLabel(CHEST,saved.world(),true); checkLabel(pos,saved.comparatorStyle(),false);
+            check(InspectorClient.hudDisplay().color()==saved.hud().argb(false),"HUD retains its own style");
+        });
+        c.takeScreenshot("separate-comparator-style-ko");
+        // Unconfirmed resets are reversible; confirmed reset affects only its display.
+        menu(c); c.clickScreenButton("comparator_inspector.comparator.title");
+        c.clickScreenButton("comparator_inspector.reset"); c.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE); c.clickScreenButton("gui.cancel");
+        c.runOnClient(mc -> check(InspectorConfig.load().equals(saved),"Cancel discards comparator defaults"));
+        menu(c); c.clickScreenButton("comparator_inspector.world.title");
+        c.clickScreenButton("comparator_inspector.reset"); c.clickScreenButton("comparator_inspector.confirm"); c.clickScreenButton("gui.cancel");
+        c.runOnClient(mc -> check(InspectorConfig.load().world().equals(DisplayStyle.WORLD) && InspectorConfig.load().comparatorStyle().equals(saved.comparatorStyle()),"General display reset does not change comparator style"));
+        menu(c); c.clickScreenButton("comparator_inspector.comparator.title");
+        c.clickScreenButton("comparator_inspector.reset"); c.clickScreenButton("comparator_inspector.confirm"); c.clickScreenButton("gui.cancel");
+        c.runOnClient(mc -> {
+            var reset=InspectorConfig.load();
+            check(reset.comparatorStyle().equals(DisplayStyle.COMPARATOR) && reset.world().equals(DisplayStyle.WORLD) && reset.hud().equals(saved.hud()),"Comparator reset preserves the other displays");
+        });
+        for (int height : new int[]{0,300}) {
+            c.runOnClient(mc -> InspectorClient.configure(saved.appearance(DisplayTarget.COMPARATOR,saved.comparatorStyle().height(height))));
+            value(c,CHEST,15); value(c,pos,15);
+            c.runOnClient(mc -> { checkLabel(CHEST,saved.world(),true); checkLabel(pos,saved.comparatorStyle().height(height),false); });
+        }
+        // With normal labels and the info panel hidden, only comparator queries and labels remain.
+        c.runOnClient(mc -> InspectorClient.configure(saved.appearance(DisplayTarget.WORLD,saved.world().enabled(false)).appearance(DisplayTarget.HUD,saved.hud().enabled(false))));
+        value(c,pos,15);
+        c.runOnClient(mc -> check(InspectorClient.validReading(CHEST)==null && InspectorClient.extractLabels().size()==1 && InspectorClient.hudDisplay()==null,"General display can be hidden without hiding comparator output"));
+        // Hiding comparator labels does not hide general labels, nor fetch invisible comparators.
+        c.runOnClient(mc -> InspectorClient.configure(saved.appearance(DisplayTarget.COMPARATOR,saved.comparatorStyle().enabled(false)).appearance(DisplayTarget.HUD,saved.hud().enabled(false))));
+        value(c,CHEST,15);
+        c.runOnClient(mc -> check(InspectorClient.validReading(pos)==null && !InspectorClient.extractLabels().isEmpty(),"Comparator display can be hidden independently"));
+        c.runOnClient(mc -> InspectorClient.configure(saved.appearance(DisplayTarget.COMPARATOR,saved.comparatorStyle().opacity(0))));
+        value(c,CHEST,15);
+        c.runOnClient(mc -> check(InspectorClient.validReading(pos)==null,"Zero comparator opacity stops nearby comparator reads"));
+        c.runOnClient(mc -> InspectorClient.configure(saved.appearance(DisplayTarget.WORLD,saved.world().enabled(false)).appearance(DisplayTarget.COMPARATOR,saved.comparatorStyle().enabled(false)).appearance(DisplayTarget.HUD,saved.hud().enabled(false))));
+        c.waitTicks(10); c.runOnClient(mc -> check(InspectorClient.readings().isEmpty() && InspectorClient.extractLabels().isEmpty(),"All three hidden stops all reads"));
+        // Targeted comparator text uses its own highlight, and the info panel can remain visible on its own.
+        c.runOnClient(mc -> {
+            InspectorClient.configure(saved.detection(true,false,8));
+            var delta=net.minecraft.world.phys.Vec3.atLowerCornerWithOffset(pos,.5,.0625,.5).subtract(mc.player.getEyePosition());
+            mc.player.setYRot((float)(Math.toDegrees(Math.atan2(delta.z,delta.x))-90));
+            mc.player.setXRot((float)-Math.toDegrees(Math.atan2(delta.y,Math.hypot(delta.x,delta.z))));
+        });
+        c.waitFor(mc -> pos.equals(InspectorClient.target(mc))); value(c,pos,15);
+        c.runOnClient(mc -> {
+            checkLabel(pos,saved.comparatorStyle(),true);
+            InspectorClient.configure(saved.detection(true,false,8).appearance(DisplayTarget.COMPARATOR,saved.comparatorStyle().enabled(false)));
+        });
+        value(c,pos,15);
+        c.runOnClient(mc -> check(InspectorClient.extractLabels().isEmpty() && InspectorClient.hudDisplay()!=null,"Comparator info panel works with its above-block display hidden"));
+        c.runOnClient(mc -> { InspectorConfig.DEFAULT.save(); InspectorClient.configure(InspectorConfig.DEFAULT); });
+        aim(c,CHEST); value(c,CHEST,15);
     }
     @Override public void runTest(ClientGameTestContext c) {
         c.getInput().resizeWindow(1000,700);
@@ -244,15 +344,15 @@ public final class InspectorGameTest implements FabricClientGameTest {
             menu(c); c.clickScreenButton("comparator_inspector.world.title");
             c.clickScreenButton("comparator_inspector.confirm"); c.clickScreenButton("gui.cancel");
             c.runOnClient(mc -> check(InspectorClient.config().comparators() && InspectorConfig.load().comparators(),"Immediate appearance save preserves comparator option"));
-            c.runOnClient(mc -> InspectorClient.configure(InspectorClient.config().appearance(true,DisplayStyle.WORLD.height(150).colors(0x43E7D4,0xFF7061))));
+            c.runOnClient(mc -> InspectorClient.configure(InspectorClient.config().appearance(DisplayTarget.COMPARATOR,DisplayStyle.COMPARATOR.height(150).colors(0x43E7D4,0xFF7061))));
             value(c,comparator,1);
             c.runOnClient(mc -> {
                 var label=InspectorClient.extractLabels().getFirst();
-                check(Math.abs(label.position().y-83.5)<.0001 && label.color()==0xFF43E7D4,"Comparator obeys world height and color");
-                InspectorClient.configure(InspectorClient.config().appearance(true,DisplayStyle.WORLD.enabled(false)));
+                check(Math.abs(label.position().y-83.5)<.0001 && label.color()==0xFF43E7D4,"Comparator obeys its own height and color");
+                InspectorClient.configure(InspectorClient.config().appearance(DisplayTarget.COMPARATOR,DisplayStyle.COMPARATOR.enabled(false)));
             });
-            c.waitTicks(10); c.runOnClient(mc -> check(InspectorClient.extractLabels().isEmpty() && InspectorClient.readings().isEmpty(),"World master toggle stops standalone comparator reads"));
-            c.runOnClient(mc -> InspectorClient.configure(InspectorClient.config().appearance(true,DisplayStyle.WORLD)));
+            c.waitTicks(10); c.runOnClient(mc -> check(InspectorClient.extractLabels().isEmpty() && InspectorClient.readings().isEmpty(),"Comparator display toggle stops standalone comparator reads"));
+            c.runOnClient(mc -> InspectorClient.configure(InspectorClient.config().appearance(DisplayTarget.COMPARATOR,DisplayStyle.COMPARATOR)));
             value(c,comparator,1);
             world.getServer().runCommand("setblock 0 81 1 minecraft:stone");
             c.waitFor(mc -> InspectorClient.validReading(comparator)==null && InspectorClient.extractLabels().isEmpty());
@@ -284,6 +384,7 @@ public final class InspectorGameTest implements FabricClientGameTest {
             c.runOnClient(mc -> { InspectorConfig.DEFAULT.save(); InspectorClient.configure(InspectorConfig.DEFAULT); });
             aim(c,CHEST); value(c,CHEST,15);
             appearances(c);
+            comparatorAppearances(c);
             // Covering the chest changes the actual vanilla comparator value.
             world.getServer().runCommand("setblock 0 82 0 minecraft:stone"); value(c,CHEST,0);
             world.getServer().runCommand("setblock 0 82 0 minecraft:air"); value(c,CHEST,15);

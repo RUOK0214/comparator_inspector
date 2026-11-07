@@ -12,7 +12,14 @@ public final class InspectorScreen extends Screen {
     private boolean failed;
     public InspectorScreen(Screen parent) { super(tr("title")); this.parent = parent; draft = InspectorClient.config(); }
     public InspectorConfig draft() { return draft; }
-    public void setAppearance(boolean world, DisplayStyle style) { draft = draft.appearance(world,style); }
+    public boolean saveAppearance(boolean world, DisplayStyle style) {
+        // Commit only this display. Other unsaved controls in the parent remain a draft.
+        var saved = InspectorClient.config().appearance(world,style);
+        if (!saved.save()) return false;
+        InspectorClient.configure(saved);
+        draft = draft.appearance(world,style);
+        return true;
+    }
     @Override protected void init() {
         int w = Math.min(300, width - 24), x = (width-w)/2, y = Math.max(38, height/2-80);
         addRenderableWidget(Button.builder(toggle("targeted", draft.targeted()), b -> {
@@ -30,7 +37,7 @@ public final class InspectorScreen extends Screen {
         int bw=(w-8)/3;
         addRenderableWidget(Button.builder(tr("reset"), b -> { draft=InspectorConfig.DEFAULT; rebuildWidgets(); }).bounds(x,height-28,bw,20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose()).bounds(x+bw+4,height-28,bw,20).build());
-        addRenderableWidget(Button.builder(tr("save"), b -> {
+        addRenderableWidget(Button.builder(tr("confirm"), b -> {
             if (draft.save()) { InspectorClient.configure(draft); onClose(); } else failed=true;
         }).bounds(x+2*(bw+4),height-28,bw,20).build());
     }

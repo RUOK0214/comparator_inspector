@@ -11,10 +11,13 @@ public final class ColorScreen extends Screen {
     private static final int[] PALETTE={0xFFFFFF,0xFFD166,0x43E7D4,0x478CFF,0xFF7061,0x7DDF64,0xBC86FF,0x141B24};
     private final Screen parent;
     private final IntConsumer accept;
+    private final int defaultColor;
     private int rgb;
     private EditBox hex;
     private Button done;
-    public ColorScreen(Screen parent,int rgb,IntConsumer accept) { super(tr("color.title")); this.parent=parent; this.rgb=rgb; this.accept=accept; }
+    public ColorScreen(Screen parent,int rgb,int defaultColor,IntConsumer accept) {
+        super(tr("color.title")); this.parent=parent; this.rgb=rgb; this.defaultColor=defaultColor; this.accept=accept;
+    }
     @Override protected void init() {
         int w=Math.min(300,width-24),x=(width-w)/2,y=Math.max(38,height/2-80);
         hex=new EditBox(font,x,y,w,20,tr("color.hex")); hex.setMaxLength(7); hex.setValue(String.format("#%06X",rgb));
@@ -29,8 +32,10 @@ public final class ColorScreen extends Screen {
                 }
             });
         }
-        addRenderableWidget(Button.builder(Component.translatable("gui.cancel"),b -> onClose()).bounds(x,height-28,(w-4)/2,20).build());
-        done=addRenderableWidget(Button.builder(tr("apply"),b -> { accept.accept(rgb); onClose(); }).bounds(x+(w+4)/2,height-28,(w-4)/2,20).build());
+        int bw=(w-8)/3;
+        addRenderableWidget(Button.builder(tr("reset"),b -> hex.setValue(String.format("#%06X",defaultColor))).bounds(x,height-28,bw,20).build());
+        addRenderableWidget(Button.builder(Component.translatable("gui.cancel"),b -> onClose()).bounds(x+bw+4,height-28,bw,20).build());
+        done=addRenderableWidget(Button.builder(tr("confirm"),b -> { accept.accept(rgb); onClose(); }).bounds(x+2*(bw+4),height-28,bw,20).build());
         hex.setResponder(text -> {
             boolean valid=text.matches("#?[0-9a-fA-F]{6}"); done.active=valid;
             if(valid) {

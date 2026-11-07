@@ -29,7 +29,7 @@ final class ModMenuChecks {
                 var list=screen.children().stream().filter(ModListWidget.class::isInstance).map(ModListWidget.class::cast).findFirst().orElseThrow();
                 list.select(list.children().stream().filter(e -> e.getMod().getId().equals("comparator_inspector")).findFirst().orElseThrow());
                 var mod=screen.getSelectedEntry().getMod();
-                check(mod.getVersion().equals("0.4.0"),"Mod Menu shows release version");
+                check(mod.getVersion().equals(FabricLoader.getInstance().getModContainer("comparator_inspector").orElseThrow().getMetadata().getVersion().getFriendlyString()),"Mod Menu shows release version");
                 check(mod.getTranslatedDescription().equals(Component.translatable("modmenu.descriptionTranslation.comparator_inspector").getString()),"Localized description resolves");
                 check(mod.getTranslatedSummary().equals(Component.translatable("modmenu.summaryTranslation.comparator_inspector").getString()),"Localized summary resolves");
                 var container=FabricLoader.getInstance().getModContainer("comparator_inspector").orElseThrow();

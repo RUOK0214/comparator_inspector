@@ -10,6 +10,7 @@ public final class AppearanceScreen extends Screen {
     private final InspectorScreen parent;
     private final boolean world;
     private DisplayStyle draft;
+    private boolean failed;
     public AppearanceScreen(InspectorScreen parent, boolean world) {
         super(tr(world ? "world.title" : "hud.title")); this.parent=parent; this.world=world;
         draft=world ? parent.draft().world() : parent.draft().hud();
@@ -28,7 +29,9 @@ public final class AppearanceScreen extends Screen {
         int bw=(w-8)/3;
         addRenderableWidget(Button.builder(tr("reset"),b -> { draft=world ? DisplayStyle.WORLD : DisplayStyle.HUD; rebuildWidgets(); }).bounds(x,height-28,bw,20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"),b -> onClose()).bounds(x+bw+4,height-28,bw,20).build());
-        addRenderableWidget(Button.builder(tr("apply"),b -> { parent.setAppearance(world,draft); onClose(); }).bounds(x+2*(bw+4),height-28,bw,20).build());
+        addRenderableWidget(Button.builder(tr("confirm"),b -> {
+            if (parent.saveAppearance(world,draft)) onClose(); else failed=true;
+        }).bounds(x+2*(bw+4),height-28,bw,20).build());
     }
     public final class HeightSlider extends AbstractSliderButton {
         HeightSlider(int x,int y,int w) {
@@ -42,7 +45,9 @@ public final class AppearanceScreen extends Screen {
     }
     private Component enabledLabel() { return tr("appearance.enabled", Component.translatable(draft.enabled() ? "options.on" : "options.off")); }
     private void color(boolean secondary) {
-        minecraft.gui.setScreen(new ColorScreen(this,secondary ? draft.secondaryColor() : draft.color(),value ->
+        var defaults=world ? DisplayStyle.WORLD : DisplayStyle.HUD;
+        minecraft.gui.setScreen(new ColorScreen(this,secondary ? draft.secondaryColor() : draft.color(),
+                secondary ? defaults.secondaryColor() : defaults.color(),value ->
                 draft=secondary ? draft.colors(draft.color(),value) : draft.colors(value,draft.secondaryColor())));
     }
     public final class StyleSlider extends AbstractSliderButton {
@@ -59,7 +64,8 @@ public final class AppearanceScreen extends Screen {
         int w=Math.min(300,width-24), x=(width-w)/2, y=top(), step=rowStep(), previewY=y+(world ? 150 : 140);
         g.fill(x+w-22,y+step+5,x+w-8,y+step+15,0xFF000000|draft.color());
         g.fill(x+w-22,y+step*2+5,x+w-8,y+step*2+15,0xFF000000|draft.secondaryColor());
-        if (!draft.visible()) g.centeredText(font,tr("appearance.hidden"),width/2,previewY,0xFFCED8E4);
+        if (failed) g.centeredText(font,tr("save_failed"),width/2,previewY,0xFFFF8070);
+        else if (!draft.visible()) g.centeredText(font,tr("appearance.hidden"),width/2,previewY,0xFFCED8E4);
         else {
             g.pose().pushMatrix(); g.pose().translate(width/2f,previewY); g.pose().scale(draft.scale(),draft.scale());
             if(world) {

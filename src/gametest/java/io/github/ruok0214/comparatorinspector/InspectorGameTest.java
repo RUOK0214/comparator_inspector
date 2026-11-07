@@ -30,18 +30,24 @@ public final class InspectorGameTest implements FabricClientGameTest {
         c.getInput().pressKey(GLFW.GLFW_KEY_T); c.waitForScreen(ChatScreen.class);
         c.getInput().typeChars("/ci"); c.getInput().pressKey(GLFW.GLFW_KEY_ENTER); c.waitForScreen(InspectorScreen.class);
     }
-    private static void color(ClientGameTestContext c,String button,String hex) {
+    private static void color(ClientGameTestContext c,String button,String hex,String defaultHex) {
         c.clickScreenButton("comparator_inspector."+button); c.waitForScreen(ColorScreen.class);
         c.runOnClient(mc -> {
             var field=mc.gui.screen().children().stream().filter(net.minecraft.client.gui.components.EditBox.class::isInstance)
                     .map(net.minecraft.client.gui.components.EditBox.class::cast).findFirst().orElseThrow();
             field.setValue("#oops");
             check(mc.gui.screen().children().stream().filter(net.minecraft.client.gui.components.Button.class::isInstance)
-                    .map(net.minecraft.client.gui.components.Button.class::cast).anyMatch(b -> b.getMessage().getString().equals(InspectorClient.tr("apply").getString()) && !b.active),"Invalid HEX cannot be applied: "+mc.gui.screen().children().stream().filter(net.minecraft.client.gui.components.Button.class::isInstance).map(net.minecraft.client.gui.components.Button.class::cast).map(b -> b.getMessage().getString()+"="+b.active).toList());
+                    .map(net.minecraft.client.gui.components.Button.class::cast).anyMatch(b -> b.getMessage().getString().equals(InspectorClient.tr("confirm").getString()) && !b.active),"Invalid HEX cannot be applied: "+mc.gui.screen().children().stream().filter(net.minecraft.client.gui.components.Button.class::isInstance).map(net.minecraft.client.gui.components.Button.class::cast).map(b -> b.getMessage().getString()+"="+b.active).toList());
+        });
+        c.clickScreenButton("comparator_inspector.reset");
+        c.runOnClient(mc -> {
+            var field=mc.gui.screen().children().stream().filter(net.minecraft.client.gui.components.EditBox.class::isInstance)
+                    .map(net.minecraft.client.gui.components.EditBox.class::cast).findFirst().orElseThrow();
+            check(field.getValue().equals(defaultHex),"Color defaults restore this field's factory color");
             field.setValue(hex);
         });
         c.takeScreenshot("color-picker-ko");
-        c.clickScreenButton("comparator_inspector.apply"); c.waitForScreen(AppearanceScreen.class);
+        c.clickScreenButton("comparator_inspector.confirm"); c.waitForScreen(AppearanceScreen.class);
     }
     private static void styleSlider(ClientGameTestContext c,boolean size,double value) {
         var point=c.computeOnClient(mc -> {
@@ -60,7 +66,9 @@ public final class InspectorGameTest implements FabricClientGameTest {
             check(previous.world().heightHundredths()==18 && !previous.world().enabled() && previous.world().color()==444 && previous.world().opacity()==65 && previous.world().scalePercent()==125,"0.2 appearance keeps its values and gets original label height");
             check(DisplayStyle.WORLD.height(-1).height()==0 && DisplayStyle.WORLD.height(400).height()==3,"Height clamps to supported range");
         });
-        menu(c); c.clickScreenButton("comparator_inspector.world.title"); c.waitForScreen(AppearanceScreen.class);
+        menu(c);
+        c.clickScreenButton(InspectorClient.tr("nearby",net.minecraft.network.chat.Component.translatable("options.off")).getString());
+        c.clickScreenButton("comparator_inspector.world.title"); c.waitForScreen(AppearanceScreen.class);
         var heightPoint=c.computeOnClient(mc -> {
             var slider=mc.gui.screen().children().stream().filter(AppearanceScreen.HeightSlider.class::isInstance)
                     .map(AppearanceScreen.HeightSlider.class::cast).findFirst().orElseThrow();
@@ -69,23 +77,29 @@ public final class InspectorGameTest implements FabricClientGameTest {
         });
         c.getInput().setCursorPos(heightPoint[0],heightPoint[1]); c.getInput().pressMouse(GLFW.GLFW_MOUSE_BUTTON_LEFT); c.waitTick();
         c.runOnClient(mc -> check(((AppearanceScreen)mc.gui.screen()).draft().heightHundredths()==150,"Height slider selects 1.50 blocks"));
-        color(c,"color.primary","#43E7D4"); color(c,"color.target","#FF7061");
+        color(c,"color.primary","#43E7D4","#FFFFFF"); color(c,"color.target","#FF7061","#FFD166");
         styleSlider(c,true,2.0/3); styleSlider(c,false,.8);
         c.takeScreenshot("world-appearance-ko");
         c.getInput().resizeWindow(854,480); c.getInput().setCursorPos(20,20); c.waitTicks(3); c.takeScreenshot("world-height-small-ko");
         c.getInput().resizeWindow(1000,700); c.waitTicks(3);
-        c.clickScreenButton("comparator_inspector.apply");
+        c.clickScreenButton("comparator_inspector.confirm");
+        c.runOnClient(mc -> {
+            var savedWorld=InspectorConfig.load();
+            check(savedWorld.world().heightHundredths()==150 && savedWorld.world().color()==0x43E7D4,"World confirmation immediately persists its own display");
+            check(!savedWorld.nearby() && ((InspectorScreen)mc.gui.screen()).draft().nearby(),"Appearance confirmation does not save pending detection changes");
+            check(savedWorld.hud().equals(DisplayStyle.HUD),"World confirmation preserves the other display");
+        });
         c.clickScreenButton("comparator_inspector.hud.title");
         c.runOnClient(mc -> check(mc.gui.screen().children().stream().noneMatch(AppearanceScreen.HeightSlider.class::isInstance),"Height control is only in world display settings"));
-        color(c,"color.primary","#7DDF64"); color(c,"color.background","#202060");
+        color(c,"color.primary","#7DDF64","#FFD166"); color(c,"color.background","#202060","#141B24");
         styleSlider(c,true,1.0/3);
         c.takeScreenshot("hud-appearance-ko");
         c.getInput().resizeWindow(854,480); c.waitTicks(3); c.takeScreenshot("appearance-small-ko");
-        c.clickScreenButton("comparator_inspector.apply"); c.clickScreenButton("comparator_inspector.save");
+        c.clickScreenButton("comparator_inspector.confirm"); c.clickScreenButton("gui.cancel");
         value(c,CHEST,15);
         var saved=c.computeOnClient(mc -> InspectorClient.config());
         c.runOnClient(mc -> {
-            check(InspectorConfig.load().equals(saved),"Both independent appearances persist");
+            check(InspectorConfig.load().equals(saved) && !saved.nearby(),"Both confirmed displays persist after parent Cancel, while pending detection is discarded");
             check(saved.world().color()==0x43E7D4 && saved.world().secondaryColor()==0xFF7061,"World colors saved");
             check(saved.world().scalePercent()==150 && saved.world().opacity()==80,"World sliders saved");
             check(saved.hud().color()==0x7DDF64 && saved.hud().secondaryColor()==0x202060,"HUD colors saved independently");
@@ -103,19 +117,22 @@ public final class InspectorGameTest implements FabricClientGameTest {
         c.runOnClient(mc -> InspectorClient.configure(saved)); value(c,CHEST,15);
         // Editing detection must preserve the two independently saved styles.
         menu(c); c.clickScreenButton(InspectorClient.tr("nearby",net.minecraft.network.chat.Component.translatable("options.off")).getString());
-        c.clickScreenButton("comparator_inspector.save");
+        c.clickScreenButton("comparator_inspector.confirm");
         value(c,BARREL,0);
         c.runOnClient(mc -> check(InspectorClient.extractLabels().stream().allMatch(label -> Math.abs(label.position().y-83.5)<.0001),"Nearby and targeted labels share the selected height"));
         c.runOnClient(mc -> check(InspectorClient.config().world().equals(saved.world()) && InspectorClient.config().hud().equals(saved.hud()),"Changing detection preserves colors"));
         menu(c); c.clickScreenButton("comparator_inspector.world.title");
         c.clickScreenButton("comparator_inspector.reset"); c.getInput().pressKey(GLFW.GLFW_KEY_ESCAPE);
         c.runOnClient(mc -> check(((InspectorScreen)mc.gui.screen()).draft().world().equals(saved.world()),"Escape discards appearance changes"));
-        c.clickScreenButton("comparator_inspector.hud.title"); c.clickScreenButton("comparator_inspector.reset"); c.clickScreenButton("comparator_inspector.apply");
+        c.clickScreenButton("comparator_inspector.hud.title"); c.clickScreenButton("comparator_inspector.reset"); c.clickScreenButton("comparator_inspector.confirm");
         c.clickScreenButton("gui.cancel");
-        c.runOnClient(mc -> check(InspectorClient.config().hud().equals(saved.hud()),"Parent Cancel also discards applied sub-menu draft"));
+        c.runOnClient(mc -> {
+            check(InspectorClient.config().hud().equals(DisplayStyle.HUD) && InspectorConfig.load().hud().equals(DisplayStyle.HUD),"Confirmed default display survives parent Cancel");
+            check(InspectorClient.config().world().equals(saved.world()),"Resetting HUD keeps saved world appearance");
+        });
         menu(c); c.clickScreenButton("comparator_inspector.world.title");
         c.clickScreenButton(InspectorClient.tr("appearance.enabled",net.minecraft.network.chat.Component.translatable("options.on")).getString());
-        c.clickScreenButton("comparator_inspector.apply"); c.clickScreenButton("comparator_inspector.save");
+        c.clickScreenButton("comparator_inspector.confirm"); c.clickScreenButton("comparator_inspector.confirm");
         value(c,CHEST,15);
         c.runOnClient(mc -> check(InspectorClient.extractLabels().isEmpty() && InspectorClient.hudDisplay()!=null,"World disabled does not hide HUD"));
         c.takeScreenshot("hud-only-ko");
@@ -173,7 +190,7 @@ public final class InspectorGameTest implements FabricClientGameTest {
             menu(c);
             c.clickScreenButton(InspectorClient.tr("nearby",net.minecraft.network.chat.Component.translatable("options.off")).getString());
             c.takeScreenshot("settings-ko");
-            c.clickScreenButton("comparator_inspector.save");
+            c.clickScreenButton("comparator_inspector.confirm");
             c.runOnClient(mc -> check(InspectorConfig.load().nearby(),"Settings persist"));
             value(c,BARREL,0); value(c,new BlockPos(4,81,0),6); value(c,new BlockPos(6,81,0),3);
             c.runOnClient(mc -> check(!InspectorClient.readings().containsKey(new BlockPos(8,81,0)),"Outside radius omitted"));

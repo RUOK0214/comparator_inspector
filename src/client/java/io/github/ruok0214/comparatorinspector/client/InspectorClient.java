@@ -26,7 +26,7 @@ public final class InspectorClient implements ClientModInitializer {
     private static volatile List<Label> labels = List.of();
     private static Identifier dimension;
     private static int ticks, sequence, lastResponseTick = -100, lastSequence = -1;
-    private static boolean openMenu, truncated;
+    private static boolean openMenu;
     public record Label(Vec3 position, String text, int color, float scale) {}
     public record HudDisplay(Component text, int color, int background, float scale) {}
     public static InspectorConfig config() { return config; }
@@ -37,7 +37,7 @@ public final class InspectorClient implements ClientModInitializer {
         config = next; candidates = List.of(); readings = Map.of(); labels = List.of();
         lastSequence = ++sequence; lastResponseTick = -100; ticks = 0;
     }
-    private static void clear() { readings = Map.of(); candidates = List.of(); labels = List.of(); dimension = null; truncated = false; lastResponseTick = -100; lastSequence = -1; }
+    private static void clear() { readings = Map.of(); candidates = List.of(); labels = List.of(); dimension = null; lastResponseTick = -100; lastSequence = -1; }
     @Override public void onInitializeClient() {
         config = InspectorConfig.load();
         ClientPlayNetworking.registerGlobalReceiver(InspectorPayloads.Snapshot.TYPE, (p, ctx) -> {
@@ -99,7 +99,6 @@ public final class InspectorClient implements ClientModInitializer {
         return state.getBlock() instanceof ComparatorBlock ? config.comparatorStyle() : config.world();
     }
     private static void scan(Minecraft mc) {
-        truncated = false;
         if (!nearbyEnabled()) { candidates = List.of(); return; }
         var center = mc.player.position(); int r = config.radius(); var origin = mc.player.blockPosition();
         Comparator<BlockPos> nearest = Comparator.comparingDouble(p -> p.distToCenterSqr(center));
@@ -119,7 +118,7 @@ public final class InspectorClient implements ClientModInitializer {
                                 var pos = new BlockPos(x, y, z);
                                 if (pos.distToCenterSqr(center) > (double) r*r) continue;
                                 if (heap.size() < InspectorPayloads.MAX_BLOCKS) heap.add(pos);
-                                else { truncated = true; if (nearest.compare(pos, heap.peek()) < 0) { heap.poll(); heap.add(pos); } }
+                                else if (nearest.compare(pos, heap.peek()) < 0) { heap.poll(); heap.add(pos); }
                             }
                 }
             }
@@ -162,7 +161,7 @@ public final class InspectorClient implements ClientModInitializer {
             var r = validReading(target);
             text = mc.level.getBlockState(target).getBlock().getName().copy().append(" · ")
                     .append(r == null ? tr("waiting") : signalText(r,config.hud()));
-        } else if (nearbyEnabled() && truncated) text = tr("limit", InspectorPayloads.MAX_BLOCKS);
+        }
         return text == null ? null : new HudDisplay(text,config.hud().argb(false),config.hud().backgroundArgb(),config.hud().scale());
     }
     private static void hud(GuiGraphicsExtractor g) {

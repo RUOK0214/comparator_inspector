@@ -11,7 +11,6 @@
   "comparator_inspector.directional": "N %s · E %s · S %s · W %s",
   "comparator_inspector.server_required": "The server also needs Comparator Inspector to read signals.",
   "comparator_inspector.waiting": "Reading / unavailable",
-  "comparator_inspector.limit": "Display limit: showing the nearest %s blocks.",
   "comparator_inspector.save_failed": "Could not save settings. Please try again.",
   "comparator_inspector.world.title": "General block display settings",
   "comparator_inspector.comparator.title": "Comparator output display settings",

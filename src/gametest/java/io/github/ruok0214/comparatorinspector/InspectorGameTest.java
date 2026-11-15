@@ -453,6 +453,44 @@ public final class InspectorGameTest implements FabricClientGameTest {
             appearances(c);
             comparatorAppearances(c);
             negativeHeightAndValueOnly(c);
+            // A shelf supplies its inventory signal on only one side. Rotation must not turn its label into 0.
+            var shelfPos=new BlockPos(-2,81,1);
+            c.runOnClient(mc -> InspectorClient.configure(InspectorConfig.DEFAULT.detection(false,true,8)));
+            for (String facing:new String[]{"north","east","west","south"}) {
+                world.getServer().runCommand("setblock -2 81 1 minecraft:oak_shelf[facing="+facing+"]");
+                world.getServer().runOnServer(s -> {
+                    var shelf=(Container)s.overworld().getBlockEntity(shelfPos);
+                    for (int i=0;i<3;i++) shelf.setItem(i,new ItemStack(Items.STONE,1));
+                    shelf.setChanged();
+                });
+                world.getConnection().waitForClientboundPackets();
+                c.waitFor(mc -> {
+                    var r=InspectorClient.validReading(shelfPos);
+                    return r!=null && !r.uniform() && switch(facing) {
+                        case "north" -> r.south()==7;
+                        case "east" -> r.west()==7;
+                        case "south" -> r.north()==7;
+                        default -> r.east()==7;
+                    };
+                });
+                c.runOnClient(mc -> check(label(shelfPos).text().equals("7 / 15") && InspectorClient.hudDisplay()==null,"All shelf orientations use one numeric nearby label"));
+            }
+            c.runOnClient(mc -> InspectorClient.configure(InspectorConfig.DEFAULT.detection(true,true,8)));
+            aim(c,shelfPos); c.waitFor(mc -> shelfPos.equals(InspectorClient.target(mc)) && InspectorClient.validReading(shelfPos)!=null);
+            c.runOnClient(mc -> {
+                check(InspectorClient.hudDisplay().text().getString().endsWith(InspectorClient.tr("signal",7).getString()),"Shelf info panel uses a numeric signal without direction names");
+                InspectorClient.configure(InspectorClient.config().appearance(DisplayTarget.WORLD,DisplayStyle.WORLD.valueOnly(true)).appearance(DisplayTarget.HUD,DisplayStyle.HUD.valueOnly(true)));
+            });
+            c.waitFor(mc -> InspectorClient.validReading(shelfPos)!=null);
+            c.runOnClient(mc -> check(label(shelfPos).text().equals("7") && InspectorClient.hudDisplay().text().getString().endsWith(" · 7"),"Shelf honors independent value-only display formats"));
+            c.takeScreenshot("shelf-without-directions-ko");
+            world.getServer().runOnServer(s -> {
+                var shelf=(Container)s.overworld().getBlockEntity(shelfPos); shelf.clearContent(); shelf.setChanged();
+            });
+            value(c,shelfPos,0);
+            c.runOnClient(mc -> check(label(shelfPos).text().equals("0") && InspectorClient.hudDisplay().text().getString().endsWith(" · 0"),"Empty shelf displays zero without directions"));
+            world.getServer().runCommand("setblock -2 81 1 minecraft:air");
+            c.runOnClient(mc -> InspectorClient.configure(InspectorConfig.DEFAULT)); aim(c,CHEST); value(c,CHEST,15);
             // Covering the chest changes the actual vanilla comparator value.
             world.getServer().runCommand("setblock 0 82 0 minecraft:stone"); value(c,CHEST,0);
             world.getServer().runCommand("setblock 0 82 0 minecraft:air"); value(c,CHEST,15);

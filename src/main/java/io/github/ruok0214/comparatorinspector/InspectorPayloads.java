@@ -12,6 +12,8 @@ public final class InspectorPayloads {
     public static final int MAX_RADIUS = 32;
     public record Reading(BlockPos pos, Identifier block, int north, int east, int south, int west) {
         public boolean uniform() { return north == east && east == south && south == west; }
+        /** One representative value, including blocks that emit only from a particular side. */
+        public int displaySignal() { return Math.max(Math.max(north,east),Math.max(south,west)); }
     }
     public record Query(Identifier dimension, int sequence, int radius, List<BlockPos> positions) implements CustomPacketPayload {
         public static final Type<Query> TYPE = new Type<>(ComparatorInspector.id("query"));

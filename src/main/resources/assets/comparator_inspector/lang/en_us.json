@@ -8,7 +8,6 @@
   "comparator_inspector.reset": "Defaults",
   "comparator_inspector.hint": "Display settings save when confirmed in each window.",
   "comparator_inspector.signal": "Comparator signal %s / 15",
-  "comparator_inspector.directional": "N %s · E %s · S %s · W %s",
   "comparator_inspector.server_required": "The server also needs Comparator Inspector to read signals.",
   "comparator_inspector.waiting": "Reading / unavailable",
   "comparator_inspector.save_failed": "Could not save settings. Please try again.",
